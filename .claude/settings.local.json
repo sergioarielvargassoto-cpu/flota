@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(code \"C:\\\\Users\\\\Usuario\\\\OneDrive\\\\Documents\\\\flota\")",
+      "PowerShell(git config *)"
+    ]
+  }
+}
