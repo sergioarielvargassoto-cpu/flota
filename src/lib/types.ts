@@ -44,10 +44,20 @@ export type KmReport = {
   km_previous: number | null; km_by_day: Record<string, number> | null;
   branch: string | null; imported_at: string; imported_from: string | null;
 };
+export type KmHistory = {
+  id: string; vehicle_id: string; km: number; recorded_at: string; created_at: string;
+};
+export type RepairHistory = {
+  id: string; repair_id: string; field: string; old_value: string | null; new_value: string; changed_at: string; created_at: string;
+};
+export type MaintenanceHistory = {
+  id: string; maintenance_id: string; field: string; old_value: string | null; new_value: string; changed_at: string; created_at: string;
+};
 export type Settings = { id: number; company: string; d1: number; d2: number; d3: number; km_alert: number; service_km: number };
 
 export type TableName =
   | 'vehicles' | 'drivers' | 'documents' | 'workshops' | 'repairs'
-  | 'maintenance' | 'fuel_loads' | 'trips' | 'attachments' | 'infractions' | 'fines' | 'km_reports';
+  | 'maintenance' | 'fuel_loads' | 'trips' | 'attachments' | 'infractions' | 'fines' | 'km_reports'
+  | 'km_history' | 'repair_history' | 'maintenance_history';
 
 export type Status = 'vencido' | 'critico' | 'urgente' | 'proximo' | 'ok' | 'nd';

@@ -1,16 +1,17 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { sb } from './supabase';
-import type { Attachment, Doc, Driver, Fine, Fuel, Infraction, KmReport, Maint, Repair, Settings, TableName, Trip, Vehicle, Workshop } from './types';
+import type { Attachment, Doc, Driver, Fine, Fuel, Infraction, KmReport, KmHistory, RepairHistory, MaintenanceHistory, Maint, Repair, Settings, TableName, Trip, Vehicle, Workshop } from './types';
 
 type Tables = {
   vehicles: Vehicle[]; drivers: Driver[]; documents: Doc[]; workshops: Workshop[]; repairs: Repair[];
   maintenance: Maint[]; fuel_loads: Fuel[]; trips: Trip[]; attachments: Attachment[]; infractions: Infraction[]; fines: Fine[]; km_reports: KmReport[];
+  km_history: KmHistory[]; repair_history: RepairHistory[]; maintenance_history: MaintenanceHistory[];
 };
 
-const EMPTY: Tables = { vehicles: [], drivers: [], documents: [], workshops: [], repairs: [], maintenance: [], fuel_loads: [], trips: [], attachments: [], infractions: [], fines: [], km_reports: [] };
+const EMPTY: Tables = { vehicles: [], drivers: [], documents: [], workshops: [], repairs: [], maintenance: [], fuel_loads: [], trips: [], attachments: [], infractions: [], fines: [], km_reports: [], km_history: [], repair_history: [], maintenance_history: [] };
 const DEFAULT_SETTINGS: Settings = { id: 1, company: 'Serprove', d1: 21, d2: 15, d3: 7, km_alert: 1000, service_km: 10000 };
-const ALL: TableName[] = ['vehicles', 'drivers', 'documents', 'workshops', 'repairs', 'maintenance', 'fuel_loads', 'trips', 'attachments', 'infractions', 'fines', 'km_reports'];
+const ALL: TableName[] = ['vehicles', 'drivers', 'documents', 'workshops', 'repairs', 'maintenance', 'fuel_loads', 'trips', 'attachments', 'infractions', 'fines', 'km_reports', 'km_history', 'repair_history', 'maintenance_history'];
 
 /** Trae TODA la tabla (Supabase devuelve máx. 1000 filas por consulta, por eso se pagina). */
 async function fetchAll<T extends { id: string }>(table: string): Promise<T[]> {

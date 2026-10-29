@@ -6,6 +6,7 @@ import {
 } from '@/lib/util';
 import { FormModal, type Field } from './FormModal';
 import { uploadFiles } from './Attachments';
+import { recordKmChange, recordRepairChange, recordMaintenanceChange } from '@/lib/history';
 
 /** Hook con la lógica común: actualizar el km del vehículo cuando un registro trae un km mayor. */
 function useBump() {
@@ -44,11 +45,15 @@ export function VehicleForm({ id, onClose }: { id?: string; onClose: () => void 
       onSave={async (vals) => {
         vals.plate = nrm(vals.plate);
         if (v) {
-          if (vals.km !== v.km) vals.km_date = todayStr();
+          if (vals.km !== v.km && vals.km !== null) {
+            vals.km_date = todayStr();
+            await recordKmChange(v.id, vals.km as number);
+          }
           await update('vehicles', v.id, vals);
         } else {
           vals.km_date = vals.km !== null ? todayStr() : null;
           const nv = await insert<Vehicle>('vehicles', vals);
+          if (vals.km !== null) await recordKmChange(nv.id, vals.km as number);
           await insertMany('documents', DOC_VEHICLE_DEFAULT.map((t) => ({ vehicle_id: nv.id, doc_type: t })));
         }
       }}
@@ -129,7 +134,14 @@ export function RepairForm({ id, vehicleId, onClose }: { id?: string; vehicleId?
       ]}
       onSave={async (vals, files) => {
         let rid = id;
-        if (rid) await update('repairs', rid, vals); else rid = (await insert<Repair>('repairs', vals)).id;
+        if (rid) {
+          if (r?.status !== vals.status) await recordRepairChange(rid, 'status', r?.status || null, vals.status as string);
+          if (r?.date !== vals.date) await recordRepairChange(rid, 'date', r?.date || null, vals.date as string);
+          if (r?.cost !== vals.cost) await recordRepairChange(rid, 'cost', String(r?.cost || ''), String(vals.cost || ''));
+          await update('repairs', rid, vals);
+        } else {
+          rid = (await insert<Repair>('repairs', vals)).id;
+        }
         if (files.length) { await uploadFiles('repair', rid, files); await reload('attachments'); }
         await bump(vals.vehicle_id as string, vals.km as number | null, vals.date as string);
       }}
@@ -157,7 +169,14 @@ export function MaintForm({ id, vehicleId, onClose }: { id?: string; vehicleId?:
       ]}
       onSave={async (vals, files) => {
         let mid = id;
-        if (mid) await update('maintenance', mid, vals); else mid = (await insert<Maint>('maintenance', vals)).id;
+        if (mid) {
+          if (m?.type !== vals.type) await recordMaintenanceChange(mid, 'type', m?.type || null, vals.type as string);
+          if (m?.date !== vals.date) await recordMaintenanceChange(mid, 'date', m?.date || null, vals.date as string);
+          if (m?.cost !== vals.cost) await recordMaintenanceChange(mid, 'cost', String(m?.cost || ''), String(vals.cost || ''));
+          await update('maintenance', mid, vals);
+        } else {
+          mid = (await insert<Maint>('maintenance', vals)).id;
+        }
         if (files.length) { await uploadFiles('maintenance', mid, files); await reload('attachments'); }
         await bump(vals.vehicle_id as string, vals.km as number | null, vals.date as string, /service/i.test(String(vals.type)));
       }}
