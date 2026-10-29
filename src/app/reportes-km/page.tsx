@@ -167,6 +167,40 @@ export default function ReportesKm() {
             </div>
           )}
 
+          {excessDays.length > 0 && (
+            <div style={{ marginTop: '30px' }}>
+              <h3>⚠️ Días con Exceso de Velocidad (límite: {SPEED_LIMIT} km/h)</h3>
+              <div className="tw">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Día</th>
+                      <th>Vehículo</th>
+                      <th>Marca</th>
+                      <th>Velocidad Máxima</th>
+                      <th>Exceso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {excessDays.sort((a, b) => b.max_speed! - a.max_speed!).map((t) => {
+                      const v = vehicles.find((x) => x.id === t.vehicle_id);
+                      const excess = (t.max_speed ?? 0) - SPEED_LIMIT;
+                      return (
+                        <tr key={t.id} style={{ backgroundColor: '#fff3cd' }}>
+                          <td><b>{fd(t.date)}</b></td>
+                          <td>{v?.plate || '?'}</td>
+                          <td className="muted">{v?.brand || '—'}</td>
+                          <td><b style={{ color: '#ef4444' }}>{t.max_speed} km/h</b></td>
+                          <td style={{ color: '#ef4444' }}>+{excess} km/h</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div style={{ marginTop: '30px' }}>
             <div style={{ marginBottom: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>Detalle por Vehículo</h3>
