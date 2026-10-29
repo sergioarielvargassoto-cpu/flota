@@ -2,6 +2,8 @@
 import { useState, useMemo } from 'react';
 import { useData } from '@/lib/data';
 import { todayStr } from '@/lib/util';
+import { InfractionsByTypeChart, InfractionsByDriverChart, InfractionsByMonthChart, StatusDistributionChart, FinesProgressChart } from '@/components/ReportCharts';
+import { generatePDF, generateSimplePDF } from '@/lib/reportPdf';
 
 export default function Reportes() {
   const { infractions, fines, drivers, vehicles } = useData();
@@ -76,6 +78,39 @@ export default function Reportes() {
     link.click();
   };
 
+  const handleDownloadPDF = () => {
+    const pdfData = {
+      title: `Reporte de Infracciones - ${todayStr()}`,
+      stats: {
+        'Total de Infracciones': stats.totalInfractions,
+        'Multas Total': `$${stats.totalFines.toFixed(2)}`,
+        'Multas Pendientes': `$${stats.pendingFines.toFixed(2)}`,
+        'Multas Pagadas': `$${stats.paidFines.toFixed(2)}`,
+      },
+      tables: [
+        {
+          name: 'Infracciones por Tipo',
+          headers: ['Tipo', 'Cantidad', 'Porcentaje'],
+          rows: Object.entries(stats.byType).map(([type, count]) => [
+            type,
+            count,
+            stats.totalInfractions > 0 ? `${((count / stats.totalInfractions) * 100).toFixed(1)}%` : '0%',
+          ]),
+        },
+        {
+          name: 'Detalle de Infracciones',
+          headers: ['Conductor', 'Vehículo', 'Fecha', 'Tipo', 'Multa ($)', 'Estado'],
+          rows: filtered.map((i) => {
+            const d = drivers.find((x) => x.id === i.driver_id);
+            const v = vehicles.find((x) => x.id === i.vehicle_id);
+            return [d?.name || '—', v?.plate || '—', i.date, i.type, i.fine_amount ? i.fine_amount.toFixed(2) : '—', i.status];
+          }),
+        },
+      ],
+    };
+    generateSimplePDF(pdfData);
+  };
+
   return (
     <>
       <h2>Generador de Reportes</h2>
@@ -132,7 +167,48 @@ export default function Reportes() {
         <div className="card"><div className="n">${stats.paidFines.toFixed(2)}</div><div className="l">Multas Pagadas</div></div>
       </div>
 
-      <h3>Infracciones por Tipo</h3>
+      <div id="reports-content" style={{ marginBottom: '20px' }}>
+        <h3>📊 Infracciones por Tipo</h3>
+        <div style={{ backgroundColor: '#f5f5f5', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+          <InfractionsByTypeChart data={stats.byType} />
+        </div>
+
+        {Object.keys(stats.byDriver).length > 0 && (
+          <>
+            <h3>👥 Top Conductores con Infracciones</h3>
+            <div style={{ backgroundColor: '#f5f5f5', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+              <InfractionsByDriverChart data={stats.byDriver} />
+            </div>
+          </>
+        )}
+
+        {Object.keys(stats.byMonth).length > 0 && (
+          <>
+            <h3>📈 Infracciones por Mes</h3>
+            <div style={{ backgroundColor: '#f5f5f5', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+              <InfractionsByMonthChart data={stats.byMonth} />
+            </div>
+          </>
+        )}
+
+        <h3>🎯 Distribución de Estados</h3>
+        <div style={{ backgroundColor: '#f5f5f5', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+          <StatusDistributionChart
+            data={{
+              Registrada: filtered.filter((i) => i.status === 'Registrada').length,
+              Pagada: filtered.filter((i) => i.status === 'Pagada').length,
+              Anulada: filtered.filter((i) => i.status === 'Anulada').length,
+            }}
+          />
+        </div>
+
+        <h3>💰 Multas Pagadas vs Pendientes</h3>
+        <div style={{ backgroundColor: '#f5f5f5', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+          <FinesProgressChart paid={stats.paidFines} pending={stats.pendingFines} />
+        </div>
+      </div>
+
+      <h3>📋 Infracciones por Tipo (Tabla)</h3>
       <div className="tw"><table>
         <thead><tr><th>Tipo</th><th>Cantidad</th><th>Porcentaje</th></tr></thead>
         <tbody>
@@ -197,6 +273,7 @@ export default function Reportes() {
 
       <div className="bar" style={{ marginTop: '20px' }}>
         <span className="sp" />
+        <button className="b2" onClick={handleDownloadPDF}>📄 Descargar PDF</button>
         <button className="b2" onClick={handleDownloadCSV}>⬇ Descargar CSV</button>
         <button className="b2" onClick={handlePrint}>🖨 Imprimir</button>
       </div>
