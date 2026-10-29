@@ -196,6 +196,7 @@ export function InfractionForm({ id, onClose }: { id?: string; onClose: () => vo
     <FormModal
       title={id ? 'Editar infracción' : 'Nueva infracción'} onClose={onClose}
       initial={inf ?? { date: todayStr(), status: 'Registrada' }}
+      files={{ kind: 'infraction', id }}
       fields={[
         { k: 'driver_id', l: 'Conductor', t: 'select', options: [['', '— seleccionar —'], ...drivers.map((d): [string, string] => [d.id, d.name])], req: true, half: true },
         { k: 'vehicle_id', l: 'Vehículo', t: 'select', options: vOpts(vehicles), req: true, half: true },
