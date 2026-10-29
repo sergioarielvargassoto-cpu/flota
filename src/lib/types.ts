@@ -29,10 +29,20 @@ export type Trip = {
 export type Attachment = {
   id: string; document_id: string | null; repair_id: string | null; maintenance_id: string | null; path: string; name: string;
 };
+export type Infraction = {
+  id: string; driver_id: string; vehicle_id: string; date: string; type: string;
+  description: string | null; location: string | null; infraction_number: string | null;
+  fine_amount: number | null; status: 'Registrada' | 'Pagada' | 'Anulada'; notes: string | null;
+};
+export type Fine = {
+  id: string; infraction_id: string; amount: number; paid_amount: number | null;
+  paid_date: string | null; due_date: string | null; payment_method: string | null;
+  receipt: string | null; notes: string | null;
+};
 export type Settings = { id: number; company: string; d1: number; d2: number; d3: number; km_alert: number; service_km: number };
 
 export type TableName =
   | 'vehicles' | 'drivers' | 'documents' | 'workshops' | 'repairs'
-  | 'maintenance' | 'fuel_loads' | 'trips' | 'attachments';
+  | 'maintenance' | 'fuel_loads' | 'trips' | 'attachments' | 'infractions' | 'fines';
 
 export type Status = 'vencido' | 'critico' | 'urgente' | 'proximo' | 'ok' | 'nd';

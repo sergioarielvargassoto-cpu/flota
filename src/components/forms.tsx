@@ -1,6 +1,6 @@
 'use client';
 import { useData } from '@/lib/data';
-import type { Doc, Driver, Fuel, Maint, Repair, Vehicle, Workshop } from '@/lib/types';
+import type { Doc, Driver, Fuel, Infraction, Maint, Repair, Vehicle, Workshop } from '@/lib/types';
 import {
   DOC_DRIVER_ALL, DOC_DRIVER_DEFAULT, DOC_VEHICLE_ALL, DOC_VEHICLE_DEFAULT, MAINT_TYPES, nrm, todayStr,
 } from '@/lib/util';
@@ -187,4 +187,30 @@ export function FuelForm({ id, onClose }: { id?: string; onClose: () => void }) 
   );
 }
 
-export type { Repair, Maint };
+export function InfractionForm({ id, onClose }: { id?: string; onClose: () => void }) {
+  const { drivers, vehicles, infractions, insert, update } = useData();
+  const inf = id ? infractions.find((x) => x.id === id) : undefined;
+  const INFRACTION_TYPES = ['Exceso de velocidad', 'Estacionamiento', 'Documentación', 'Seguridad', 'Mantenimiento', 'Otra'];
+  const STATUSES = ['Registrada', 'Pagada', 'Anulada'];
+  return (
+    <FormModal
+      title={id ? 'Editar infracción' : 'Nueva infracción'} onClose={onClose}
+      initial={inf ?? { date: todayStr(), status: 'Registrada' }}
+      fields={[
+        { k: 'driver_id', l: 'Conductor', t: 'select', options: [['', '— seleccionar —'], ...drivers.map((d): [string, string] => [d.id, d.name])], req: true, half: true },
+        { k: 'vehicle_id', l: 'Vehículo', t: 'select', options: vOpts(vehicles), req: true, half: true },
+        { k: 'date', l: 'Fecha', t: 'date', req: true, half: true }, { k: 'type', l: 'Tipo', t: 'combo', options: INFRACTION_TYPES, req: true, half: true },
+        { k: 'infraction_number', l: 'N° de infracción', half: true }, { k: 'location', l: 'Lugar', half: true },
+        { k: 'description', l: 'Descripción', t: 'textarea' },
+        { k: 'fine_amount', l: 'Monto de multa ($)', t: 'number', step: '0.01', half: true }, { k: 'status', l: 'Estado', t: 'select', options: STATUSES, half: true },
+        { k: 'notes', l: 'Notas', t: 'textarea' },
+      ]}
+      onSave={async (vals) => {
+        if (inf) await update('infractions', inf.id, vals);
+        else await insert('infractions', vals);
+      }}
+    />
+  );
+}
+
+export type { Repair, Maint, Infraction };
