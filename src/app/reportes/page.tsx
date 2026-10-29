@@ -115,8 +115,9 @@ export default function Reportes() {
     <>
       <h2>Generador de Reportes</h2>
 
-      <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', marginBottom: '20px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+      <div style={{ padding: '20px', backgroundColor: '#e3f2fd', borderRadius: '8px', marginBottom: '20px', border: '2px solid #2196f3' }}>
+        <h3 style={{ marginTop: 0, color: '#1976d2' }}>⚙️ Filtrar Reporte</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>Tipo de Reporte</label>
             <select value={reportType} onChange={(e) => setReportType(e.target.value as any)} style={{ width: '100%', padding: '8px' }}>
@@ -157,6 +158,24 @@ export default function Reportes() {
               </select>
             </div>
           )}
+        </div>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+          <button
+            onClick={() => {
+              setStartDate('');
+              setSelectedDriver('');
+              setSelectedVehicle('');
+            }}
+            style={{ padding: '10px 20px', backgroundColor: '#f44336', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            🔄 Limpiar Filtros
+          </button>
+          <button
+            onClick={() => handleDownloadPDF()}
+            style={{ padding: '10px 20px', backgroundColor: '#4caf50', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}
+          >
+            📊 Generar Reporte
+          </button>
         </div>
       </div>
 
