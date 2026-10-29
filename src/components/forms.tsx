@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useData } from '@/lib/data';
 import type { Doc, Driver, Fuel, Infraction, Maint, Repair, Vehicle, Workshop } from '@/lib/types';
 import {
@@ -47,13 +48,13 @@ export function VehicleForm({ id, onClose }: { id?: string; onClose: () => void 
         if (v) {
           if (vals.km !== v.km && vals.km !== null) {
             vals.km_date = todayStr();
-            await recordKmChange(v.id, vals.km as number);
+            await recordKmChange(v.id, vals.km as number, v.km);
           }
           await update('vehicles', v.id, vals);
         } else {
           vals.km_date = vals.km !== null ? todayStr() : null;
           const nv = await insert<Vehicle>('vehicles', vals);
-          if (vals.km !== null) await recordKmChange(nv.id, vals.km as number);
+          if (vals.km !== null) await recordKmChange(nv.id, vals.km as number, null);
           await insertMany('documents', DOC_VEHICLE_DEFAULT.map((t) => ({ vehicle_id: nv.id, doc_type: t })));
         }
       }}
@@ -232,6 +233,69 @@ export function InfractionForm({ id, onClose }: { id?: string; onClose: () => vo
         if (files.length) { await uploadFiles('infraction', infId, files); await reload('attachments'); }
       }}
     />
+  );
+}
+
+export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: () => void }) {
+  const { update, reload } = useData();
+  const [newKm, setNewKm] = useState(vehicle.km?.toString() ?? '');
+  const [busy, setBusy] = useState(false);
+  const kmChange = vehicle.km !== null ? parseInt(newKm || '0') - vehicle.km : null;
+
+  return (
+    <div className="ov">
+      <div className="md" style={{ maxWidth: '500px' }}>
+        <h3>📊 Actualizar Kilometraje - {vehicle.plate}</h3>
+        <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '6px', fontSize: '14px' }}>
+          <p style={{ margin: '0 0 8px 0' }}><b>Kilometraje actual:</b> {vehicle.km ? vehicle.km.toLocaleString() : '0'} km</p>
+          <p style={{ margin: '0' }}><b>Última actualización:</b> {vehicle.km_date ? new Date(vehicle.km_date).toLocaleDateString('es-AR') : 'Nunca'}</p>
+        </div>
+
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          if (newKm === '' || isNaN(Number(newKm))) return alert('Ingresa un número válido');
+          const num = Number(newKm);
+          if (vehicle.km !== null && num < vehicle.km) return alert('El nuevo km no puede ser menor al anterior');
+          setBusy(true);
+          try {
+            await update('vehicles', vehicle.id, { km: num, km_date: todayStr() });
+            await reload('km_history');
+            onClose();
+          } catch (e) {
+            alert('Error: ' + (e instanceof Error ? e.message : String(e)));
+          } finally {
+            setBusy(false);
+          }
+        }}>
+          <div className="fg">
+            <label htmlFor="km_input">Nuevo kilometraje *</label>
+            <input
+              id="km_input"
+              type="number"
+              value={newKm}
+              onChange={(e) => setNewKm(e.target.value)}
+              placeholder="Ej: 125000"
+              autoFocus
+            />
+          </div>
+
+          {kmChange !== null && (
+            <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: kmChange > 0 ? '#e8f5e9' : '#ffebee', borderRadius: '6px', fontSize: '14px' }}>
+              <p style={{ margin: '0' }}>
+                <b>Cambio:</b> <span style={{ color: kmChange > 0 ? '#2e7d32' : '#c62828' }}>
+                  {kmChange > 0 ? '+' : ''}{kmChange.toLocaleString()} km
+                </span>
+              </p>
+            </div>
+          )}
+
+          <div className="btns">
+            <button type="button" className="b2" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="b1" disabled={busy}>{busy ? 'Guardando…' : 'Actualizar'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 

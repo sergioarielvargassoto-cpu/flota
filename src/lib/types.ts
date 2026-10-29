@@ -45,7 +45,7 @@ export type KmReport = {
   branch: string | null; imported_at: string; imported_from: string | null;
 };
 export type KmHistory = {
-  id: string; vehicle_id: string; km: number; recorded_at: string; created_at: string;
+  id: string; vehicle_id: string; km: number; km_previous: number | null; recorded_at: string; changed_by: string; created_at: string;
 };
 export type RepairHistory = {
   id: string; repair_id: string; field: string; old_value: string | null; new_value: string; changed_at: string; created_at: string;

@@ -5,15 +5,28 @@ export function KmTimeline({ history }: { history: KmHistory[] }) {
   if (!history.length) return null;
   const sorted = [...history].sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
   return (
-    <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f9f9f9', borderRadius: '8px' }}>
-      <h4 style={{ margin: '0 0 12px 0' }}>📊 Evolución de Kilometraje</h4>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
-        {sorted.map((entry, i) => (
-          <div key={entry.id} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: i < sorted.length - 1 ? '1px solid #ddd' : 'none' }}>
-            <span>{new Date(entry.recorded_at).toLocaleDateString('es-AR')}</span>
-            <span style={{ fontWeight: 'bold' }}>{entry.km.toLocaleString()} km</span>
-          </div>
-        ))}
+    <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
+      <h4 style={{ margin: '0 0 12px 0' }}>📊 Historial de Kilometraje (Auditoría)</h4>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+        {sorted.map((entry, i) => {
+          const date = new Date(entry.recorded_at);
+          const dateStr = date.toLocaleDateString('es-AR');
+          const timeStr = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+          const change = entry.km_previous !== null ? `${entry.km_previous.toLocaleString()} → ${entry.km.toLocaleString()}` : `${entry.km.toLocaleString()} (inicial)`;
+          const delta = entry.km_previous !== null ? (entry.km - entry.km_previous).toLocaleString() : 'N/A';
+          return (
+            <div key={entry.id} style={{ padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #90caf9' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: '#0d47a1', fontWeight: 'bold' }}>{dateStr} {timeStr}</span>
+                <span style={{ color: '#666', fontSize: '12px' }}>por {entry.changed_by}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 'bold' }}>{change} km</span>
+                {entry.km_previous !== null && <span style={{ color: delta.startsWith('-') ? '#d32f2f' : '#388e3c', fontSize: '12px' }}>({delta > 0 ? '+' : ''}{delta} km)</span>}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

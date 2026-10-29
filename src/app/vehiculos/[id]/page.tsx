@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useData } from '@/lib/data';
 import { fd, guard, money, num, todayStr } from '@/lib/util';
 import { DocsTable, MaintTable, RepairsTable } from '@/components/Tables';
-import { MaintForm, RepairForm, VehicleForm } from '@/components/forms';
+import { MaintForm, RepairForm, VehicleForm, KmUpdateForm } from '@/components/forms';
 import { removeStoredFiles } from '@/components/Attachments';
 import { useModal } from '@/components/useModal';
 import { KmTimeline } from '@/components/HistoryTimeline';
@@ -43,12 +43,7 @@ export default function VehiculoDetalle() {
         <div><span>Tipo</span>{v.type || '—'}</div>
         <div><span>Año</span>{v.year || '—'}</div>
         <div><span>Kilometraje{v.km_date ? ` (al ${fd(v.km_date)})` : ''}</span>{num(v.km)} km{' '}
-          <button className="b2 sm" onClick={() => {
-            const n = prompt(`Kilometraje actual de ${v.plate}:`, v.km?.toString() ?? '');
-            if (n === null) return;
-            if (n === '' || isNaN(Number(n))) return alert('Número inválido');
-            guard(() => update('vehicles', v.id, { km: Number(n), km_date: todayStr() }));
-          }}>actualizar</button></div>
+          <button className="b2 sm" onClick={() => open((c) => <KmUpdateForm vehicle={v} onClose={c} />)}>actualizar</button></div>
         <div><span>Chofer</span>{d ? <Link className="lk" href={`/choferes/${d.id}`}>{d.name}</Link> : '—'}</div>
         <div><span>Estado</span>{v.status}</div>
         <div><span>Chasis/motor</span>{v.chassis || '—'}</div>
