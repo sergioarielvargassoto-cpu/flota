@@ -5,7 +5,7 @@ import { useData } from '@/lib/data';
 
 const TABS: [string, string][] = [
   ['/', '📊 Panel'], ['/vehiculos', '🚚 Vehículos'], ['/choferes', '🪪 Choferes'], ['/infracciones', '⚠️ Infracciones'],
-  ['/reparaciones', '🔧 Reparaciones'], ['/mantenimientos', '🛢 Mantenimientos'], ['/recorridos', '📍 Recorridos'],
+  ['/reportes', '📈 Reportes'], ['/reparaciones', '🔧 Reparaciones'], ['/mantenimientos', '🛢 Mantenimientos'], ['/recorridos', '📍 Recorridos'],
   ['/combustible', '⛽ Combustible'], ['/talleres', '🏭 Talleres'], ['/ajustes', '⚙ Ajustes'],
 ];
 

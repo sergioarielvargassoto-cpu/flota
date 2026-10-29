@@ -8,7 +8,9 @@
       "Bash(git remote *)",
       "Bash(git push *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'Add infractions management system with CRUD pages *)"
+      "Bash(git commit -m 'Add infractions management system with CRUD pages *)",
+      "Bash(git commit -m 'Add infractions summary to dashboard *)",
+      "Bash(git commit -m 'Add comprehensive reports page with filters and analytics *)"
     ]
   }
 }
