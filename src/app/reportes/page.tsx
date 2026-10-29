@@ -34,7 +34,7 @@ export default function Reportes() {
       .reduce((sum, f) => sum + f.amount, 0);
     const paidFines = fines
       .filter((f) => filteredInfractionIds.has(f.infraction_id) && f.paid_amount !== null)
-      .reduce((sum, f) => sum + f.paid_amount, 0);
+      .reduce((sum, f) => sum + (f.paid_amount ?? 0), 0);
 
     // Create Map for O(1) driver/vehicle lookup
     const driverMap = new Map(drivers.map((d) => [d.id, d.name]));
