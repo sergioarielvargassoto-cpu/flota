@@ -13,7 +13,8 @@ export function KmTimeline({ history }: { history: KmHistory[] }) {
           const dateStr = date.toLocaleDateString('es-AR');
           const timeStr = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
           const change = entry.km_previous !== null ? `${entry.km_previous.toLocaleString()} → ${entry.km.toLocaleString()}` : `${entry.km.toLocaleString()} (inicial)`;
-          const delta = entry.km_previous !== null ? (entry.km - entry.km_previous).toLocaleString() : 'N/A';
+          const deltaNr = entry.km_previous !== null ? entry.km - entry.km_previous : 0;
+          const delta = deltaNr !== 0 ? deltaNr.toLocaleString() : 'N/A';
           return (
             <div key={entry.id} style={{ padding: '10px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #90caf9' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -22,7 +23,7 @@ export function KmTimeline({ history }: { history: KmHistory[] }) {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 'bold' }}>{change} km</span>
-                {entry.km_previous !== null && <span style={{ color: delta.startsWith('-') ? '#d32f2f' : '#388e3c', fontSize: '12px' }}>({delta > 0 ? '+' : ''}{delta} km)</span>}
+                {entry.km_previous !== null && <span style={{ color: deltaNr < 0 ? '#d32f2f' : '#388e3c', fontSize: '12px' }}>({deltaNr > 0 ? '+' : ''}{delta} km)</span>}
               </div>
             </div>
           );

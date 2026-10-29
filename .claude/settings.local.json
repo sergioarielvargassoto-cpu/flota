@@ -26,7 +26,8 @@
       "Bash(cp \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Distancias Diarias - Ref_419798.xlsx\" \"C:\\\\Users\\\\Usuario\\\\OneDrive\\\\Documents\\\\flota\\\\distancias_temp.xlsx\")",
       "Bash(node)",
       "Bash(cp *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python3 audit.py)"
     ]
   }
 }

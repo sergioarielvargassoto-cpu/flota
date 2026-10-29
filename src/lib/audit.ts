@@ -70,7 +70,7 @@ export async function auditKmConsistency() {
           issues.push({
             type: 'manual_vs_import',
             severity: 'info',
-            message: `Cambios manuales después de última importación: ${historyAfterLastReport.km} (${new Date(lastHistoryAfterReport.recorded_at).toLocaleDateString('es-AR')})`,
+            message: `Cambios manuales después de última importación: ${lastHistoryAfterReport.km} (${new Date(lastHistoryAfterReport.recorded_at).toLocaleDateString('es-AR')})`,
             vehicleId: v.id,
             data: { manualKm: lastHistoryAfterReport.km, importKm: lastReport.km_total, importDate: `${lastReport.year}-${lastReport.month}` },
           });

@@ -140,7 +140,7 @@ export async function systemAudit() {
             severity: 'warning',
             message: `${v.id.slice(0, 8)}: vehicles.km (${v.km}) ≠ último km_history (${vHistory[0].km})`,
             count: 1,
-            details: { vehicleId: v.id, current: v.km, lastHistory: vHistory[0].km },
+            details: { vehicle_id: v.id, current: v.km, lastHistory: vHistory[0].km },
           });
         }
 
@@ -155,7 +155,7 @@ export async function systemAudit() {
               severity: 'critical',
               message: `${v.id.slice(0, 8)}: Cadena de historial rota en registros ${i} y ${i + 1}`,
               count: 1,
-              details: { vehicleId: v.id, index: i },
+              details: { vehicle_id: v.id, index: i },
             });
           }
         }
@@ -175,7 +175,7 @@ export async function systemAudit() {
               message: `${v.id.slice(0, 8)}: Cambios manuales posteriores a última importación`,
               count: 1,
               details: {
-                vehicleId: v.id,
+                vehicle_id: v.id,
                 manualKm: lastHistory.km,
                 importKm: lastReport.km_total,
                 importDate: `${lastReport.year}-${lastReport.month}`,
