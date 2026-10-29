@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useData } from '@/lib/data';
-import { num, money } from '@/lib/util';
+import { num, money, guard } from '@/lib/util';
 import { calcularAnalisisConductores, calcularAnalisisCostos, calcularComparativasSucursales } from '@/lib/analisisHelpers';
 import { BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
@@ -47,9 +47,15 @@ export default function ReportesSucursales() {
         <h2 style={{ margin: 0 }}>🏢 Comparativas por Sucursal</h2>
         <span className="sp" />
         {months.length > 0 && (
-          <select value={month} onChange={(e) => setSelectedMonth(e.target.value)}>
-            {months.map((m) => <option key={m} value={m}>{m.split('-').reverse().join('/')}</option>)}
-          </select>
+          <>
+            <select value={month} onChange={(e) => setSelectedMonth(e.target.value)}>
+              {months.map((m) => <option key={m} value={m}>{m.split('-').reverse().join('/')}</option>)}
+            </select>
+            <button className="b1" onClick={() => guard(async () => {
+              const excel = await import('@/lib/excelExports').then((m) => m.exportarSucursalesExcel);
+              excel(comparativas, month.split('-'));
+            })}>📊 Excel</button>
+          </>
         )}
       </div>
 

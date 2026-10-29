@@ -68,10 +68,16 @@ export default function ReportesConductores() {
           </>
         )}
         {month && (
-          <button className="b1" onClick={() => guard(async () => {
-            const pdf = await import('@/lib/conductorPdf').then((m) => m.generateConductorPdf);
-            pdf(analisis, month.split('-'), branch);
-          })}>📄 PDF</button>
+          <>
+            <button className="b1" onClick={() => guard(async () => {
+              const pdf = await import('@/lib/conductorPdf').then((m) => m.generateConductorPdf);
+              pdf(analisis, month.split('-'), branch);
+            })}>📄 PDF</button>
+            <button className="b1" onClick={() => guard(async () => {
+              const excel = await import('@/lib/excelExports').then((m) => m.exportarConductoresExcel);
+              excel(analisis, month.split('-'), branch);
+            })}>📊 Excel</button>
+          </>
         )}
       </div>
 

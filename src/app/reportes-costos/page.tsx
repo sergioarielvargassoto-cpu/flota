@@ -93,10 +93,16 @@ export default function ReportesCostos() {
           </>
         )}
         {month && (
-          <button className="b1" onClick={() => guard(async () => {
-            const pdf = await import('@/lib/costosPdf').then((m) => m.generateCostosPdf);
-            pdf(dataFiltrada, month.split('-'), branch);
-          })}>📄 PDF</button>
+          <>
+            <button className="b1" onClick={() => guard(async () => {
+              const pdf = await import('@/lib/costosPdf').then((m) => m.generateCostosPdf);
+              pdf(dataFiltrada, month.split('-'), branch);
+            })}>📄 PDF</button>
+            <button className="b1" onClick={() => guard(async () => {
+              const excel = await import('@/lib/excelExports').then((m) => m.exportarCostosExcel);
+              excel(dataFiltrada, month.split('-'), branch);
+            })}>📊 Excel</button>
+          </>
         )}
       </div>
 
