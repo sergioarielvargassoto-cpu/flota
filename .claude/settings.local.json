@@ -16,7 +16,9 @@
       "Bash(git commit -m 'Fix TypeScript error in reports paid_amount calculation *)",
       "Bash(git commit -m 'Fix TypeScript error in Pie chart label function *)",
       "Bash(git commit -m 'Add prominent report generation button and improve filters UI *)",
-      "Bash(git commit -m 'Professional audit fixes for reports functionality *)"
+      "Bash(git commit -m 'Professional audit fixes for reports functionality *)",
+      "Bash(git commit -m 'Fix TypeScript null check for paid_amount in reduce *)",
+      "Bash(git commit -m 'Add photo/evidence support for infractions *)"
     ]
   }
 }

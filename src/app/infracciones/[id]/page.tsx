@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useData } from '@/lib/data';
 import { InfractionForm } from '@/components/forms';
 import { useModal } from '@/components/useModal';
+import { AttachmentList } from '@/components/Attachments';
 
 export default function InfractionDetail({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -52,6 +53,7 @@ export default function InfractionDetail({ params }: { params: { id: string } })
           <p><b>Lugar:</b> {infraction.location || '—'}</p>
           <p><b>N° Infracción:</b> {infraction.infraction_number || '—'}</p>
           <p><b>Estado:</b> <span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: statusColor[infraction.status], color: '#fff' }}>{infraction.status}</span></p>
+          {<AttachmentList kind="infraction" id={infraction.id} editable={true} />}
         </div>
 
         <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>

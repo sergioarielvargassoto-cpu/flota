@@ -188,7 +188,7 @@ export function FuelForm({ id, onClose }: { id?: string; onClose: () => void }) 
 }
 
 export function InfractionForm({ id, onClose }: { id?: string; onClose: () => void }) {
-  const { drivers, vehicles, infractions, insert, update } = useData();
+  const { drivers, vehicles, infractions, insert, update, reload } = useData();
   const inf = id ? infractions.find((x) => x.id === id) : undefined;
   const INFRACTION_TYPES = ['Exceso de velocidad', 'Estacionamiento', 'Documentación', 'Seguridad', 'Mantenimiento', 'Otra'];
   const STATUSES = ['Registrada', 'Pagada', 'Anulada'];
@@ -205,9 +205,11 @@ export function InfractionForm({ id, onClose }: { id?: string; onClose: () => vo
         { k: 'fine_amount', l: 'Monto de multa ($)', t: 'number', step: '0.01', half: true }, { k: 'status', l: 'Estado', t: 'select', options: STATUSES, half: true },
         { k: 'notes', l: 'Notas', t: 'textarea' },
       ]}
-      onSave={async (vals) => {
-        if (inf) await update('infractions', inf.id, vals);
-        else await insert('infractions', vals);
+      onSave={async (vals, files) => {
+        let infId = id;
+        if (infId) await update('infractions', infId, vals);
+        else infId = (await insert<Infraction>('infractions', vals)).id;
+        if (files.length) { await uploadFiles('infraction', infId, files); await reload('attachments'); }
       }}
     />
   );

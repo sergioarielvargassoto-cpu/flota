@@ -4,9 +4,9 @@ import { useData } from '@/lib/data';
 import { guard } from '@/lib/util';
 import type { Attachment } from '@/lib/types';
 
-export type ParentKind = 'document' | 'repair' | 'maintenance';
-const COL: Record<ParentKind, 'document_id' | 'repair_id' | 'maintenance_id'> = {
-  document: 'document_id', repair: 'repair_id', maintenance: 'maintenance_id',
+export type ParentKind = 'document' | 'repair' | 'maintenance' | 'infraction';
+const COL: Record<ParentKind, 'document_id' | 'repair_id' | 'maintenance_id' | 'infraction_id'> = {
+  document: 'document_id', repair: 'repair_id', maintenance: 'maintenance_id', infraction: 'infraction_id',
 };
 const safe = (n: string) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
 
