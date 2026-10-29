@@ -54,9 +54,9 @@ export function computeAlerts(d: Input, all = false): AlertItem[] {
     if (!v && !dr) continue;
     const days = daysTo(doc.expires_on);
     out.push({
-      kind: v ? 'Vehículo' : 'Chofer', what: doc.doc_type, who: v ? v.plate : dr!.name,
+      kind: v ? 'Vehículo' : 'Chofer', what: doc.doc_type, who: v ? v.plate : (dr?.name ?? '(sin chofer)'),
       date: doc.expires_on, days, status: statusOf(days, s), sort: days ?? 9999,
-      owner: v ? 'vehiculos' : 'choferes', ownerId: (v ? v.id : dr!.id), ref: doc.reference,
+      owner: v ? 'vehiculos' : 'choferes', ownerId: (v ? v.id : (dr?.id ?? '')), ref: doc.reference,
     });
   }
 

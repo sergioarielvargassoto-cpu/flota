@@ -116,7 +116,7 @@ export function RepairForm({ id, vehicleId, onClose }: { id?: string; vehicleId?
   return (
     <FormModal
       title={id ? 'Editar reparación' : 'Nueva reparación'} onClose={onClose}
-      initial={r ?? { vehicle_id: vehicleId ?? vehicles[0]?.id, date: todayStr(), status: 'Finalizada' }}
+      initial={r ?? { vehicle_id: vehicleId || vehicles[0]?.id || '', date: todayStr(), status: 'Finalizada' }}
       files={{ kind: 'repair', id }}
       fields={[
         { k: 'vehicle_id', l: 'Vehículo', t: 'select', options: vOpts(vehicles), req: true },
@@ -144,7 +144,7 @@ export function MaintForm({ id, vehicleId, onClose }: { id?: string; vehicleId?:
   return (
     <FormModal
       title={id ? 'Editar mantenimiento' : 'Nuevo mantenimiento'} onClose={onClose}
-      initial={m ?? { vehicle_id: vehicleId ?? vehicles[0]?.id, date: todayStr() }}
+      initial={m ?? { vehicle_id: vehicleId || vehicles[0]?.id || '', date: todayStr() }}
       files={{ kind: 'maintenance', id }}
       fields={[
         { k: 'vehicle_id', l: 'Vehículo', t: 'select', options: vOpts(vehicles), req: true },

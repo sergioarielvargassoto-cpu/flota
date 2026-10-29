@@ -27,7 +27,7 @@ export type Trip = {
   max_speed: number | null; moving_time: string | null;
 };
 export type Attachment = {
-  id: string; document_id: string | null; repair_id: string | null; maintenance_id: string | null; path: string; name: string;
+  id: string; document_id: string | null; repair_id: string | null; maintenance_id: string | null; infraction_id: string | null; path: string; name: string;
 };
 export type Infraction = {
   id: string; driver_id: string; vehicle_id: string; date: string; type: string;

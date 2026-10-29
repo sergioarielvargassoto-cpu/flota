@@ -13,14 +13,18 @@ const DEFAULT_SETTINGS: Settings = { id: 1, company: 'Serprove', d1: 21, d2: 15,
 const ALL: TableName[] = ['vehicles', 'drivers', 'documents', 'workshops', 'repairs', 'maintenance', 'fuel_loads', 'trips', 'attachments', 'infractions', 'fines'];
 
 /** Trae TODA la tabla (Supabase devuelve máx. 1000 filas por consulta, por eso se pagina). */
-async function fetchAll<T>(table: string): Promise<T[]> {
+async function fetchAll<T extends { id: string }>(table: string): Promise<T[]> {
   const out: T[] = [];
-  const step = 1000;
-  for (let from = 0; ; from += step) {
-    const { data, error } = await sb().from(table).select('*').order('id').range(from, from + step - 1);
+  let lastId: string | null = null;
+  while (true) {
+    let q = sb().from(table).select('*').order('id').limit(1000);
+    if (lastId) q = q.gt('id', lastId);
+    const { data, error } = await q;
     if (error) throw error;
+    if (!data || data.length === 0) break;
     out.push(...((data ?? []) as T[]));
-    if (!data || data.length < step) break;
+    if (data.length < 1000) break;
+    lastId = data[data.length - 1].id;
   }
   return out;
 }
@@ -83,11 +87,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [reload]);
 
   const insertMany = useCallback(async (table: TableName, rows: object[]) => {
-    for (let i = 0; i < rows.length; i += 200) {
-      const { error: e } = await sb().from(table).insert(rows.slice(i, i + 200));
-      if (e) throw e;
+    let inserted = 0;
+    try {
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error: e } = await sb().from(table).insert(rows.slice(i, i + 200));
+        if (e) {
+          const err = new Error(`Importación parcial: ${inserted}/${rows.length} registros importados`);
+          (err as any).originalError = e;
+          throw err;
+        }
+        inserted += Math.min(200, rows.length - i);
+      }
+    } finally {
+      if (inserted > 0) await reload(table);
     }
-    await reload(table);
   }, [reload]);
 
   const update = useCallback(async (table: TableName, id: string, patch: object) => {

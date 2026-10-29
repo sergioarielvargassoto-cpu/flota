@@ -48,8 +48,9 @@ export function pDate(v: unknown): string {
 export function okOdo(km: number | null, kmDate: string | null, fecha: string, odo: number): boolean {
   if (!isFinite(odo) || odo <= 0 || km === null || !kmDate) return false;
   const dd = Math.round((+new Date(fecha + 'T00:00:00') - +new Date(kmDate + 'T00:00:00')) / 864e5);
-  const a = Math.max(1, Math.abs(dd)) * 700 + 1000;
-  return dd >= 0 ? odo >= km - 300 && odo <= km + a : odo <= km + 300 && odo >= km - a;
+  if (dd < 0) return false;
+  const a = Math.max(1, dd) * 700 + 1000;
+  return odo >= km - 300 && odo <= km + a;
 }
 
 export const isFuel = (product: string | null | undefined): boolean => !/azul|adblue/i.test(product ?? '');

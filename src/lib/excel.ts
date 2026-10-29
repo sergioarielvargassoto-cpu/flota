@@ -34,11 +34,11 @@ export type ColSpec = { k: string; l: string; re: RegExp };
 
 /** Detecta la fila de encabezados y propone qué columna es cada campo. */
 export function detectColumns(rows: unknown[][], spec: ColSpec[]) {
-  const all = new RegExp(spec.map((s) => s.re.source).join('|'), 'i');
+  const matchesSpec = (val: string) => spec.some((s) => s.re.test(val));
   let hi = 0;
   let best = -1;
   rows.slice(0, 25).forEach((r, i) => {
-    const score = r.filter((c) => all.test(String(c))).length * 10 + r.filter((c) => String(c).trim() !== '').length;
+    const score = r.filter((c) => matchesSpec(String(c))).length * 10 + r.filter((c) => String(c).trim() !== '').length;
     if (score > best) { best = score; hi = i; }
   });
   const headers = rows[hi].map((c) => String(c).trim());

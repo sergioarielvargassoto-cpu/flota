@@ -25,7 +25,8 @@ export async function uploadFiles(kind: ParentKind, parentId: string, files: Fil
 /** Borra del Storage los archivos de los adjuntos indicados (los registros se borran solos en cascada). */
 export async function removeStoredFiles(list: Attachment[]) {
   if (!list.length) return;
-  await sb().storage.from('adjuntos').remove(list.map((a) => a.path));
+  const { error } = await sb().storage.from('adjuntos').remove(list.map((a) => a.path));
+  if (error) throw error;
 }
 
 export function openAttachment(a: Attachment) {

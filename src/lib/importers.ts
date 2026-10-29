@@ -103,7 +103,7 @@ export function useImporters() {
   async function importFuel(data: unknown[][], m: Record<string, number>) {
     if (m.f < 0 || m.l < 0 || (m.p < 0 && m.t < 0)) return alert('Hace falta fecha, litros y patente o tarjeta.');
     const g = (r: unknown[], k: string) => (m[k] >= 0 ? String(r[m[k]] ?? '').trim() : '');
-    const byCard = (t: string) => vehicles.find((x) => nrm(x.fuel_card) && (t.includes(nrm(x.fuel_card)) || nrm(x.fuel_card).includes(t)));
+    const byCard = (t: string) => vehicles.find((x) => nrm(x.fuel_card) && nrm(x.fuel_card) === nrm(t).slice(-6));
     const L = data.map((r) => {
       const t = nrm(g(r, 't'));
       let pt = nrm(g(r, 'p'));
@@ -145,7 +145,7 @@ export function useImporters() {
       });
     }
     for (let i = 0; i < rows.length; i += 200) {
-      const { error } = await sb().from('fuel_loads').upsert(rows.slice(i, i + 200), { onConflict: 'receipt', ignoreDuplicates: true });
+      const { error } = await sb().from('fuel_loads').insert(rows.slice(i, i + 200));
       if (error) throw error;
     }
     for (const [vid, st] of state) {

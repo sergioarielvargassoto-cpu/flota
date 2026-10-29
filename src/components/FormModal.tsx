@@ -62,10 +62,10 @@ export function FormModal({ title, fields, initial, onSave, onClose, files }: {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            for (const f of fields) if (f.req && !vals[f.k].trim()) return alert('Completá: ' + f.l);
+            for (const f of fields) if (f.req && !String(vals[f.k]).trim()) return alert('Completá: ' + f.l);
             const out: Values = {};
             for (const f of fields) {
-              const raw = vals[f.k].trim();
+              const raw = String(vals[f.k]).trim();
               out[f.k] = raw === '' ? null : f.t === 'number' ? Number(raw) : raw;
             }
             setBusy(true);

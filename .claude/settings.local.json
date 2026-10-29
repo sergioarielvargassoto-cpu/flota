@@ -18,7 +18,9 @@
       "Bash(git commit -m 'Add prominent report generation button and improve filters UI *)",
       "Bash(git commit -m 'Professional audit fixes for reports functionality *)",
       "Bash(git commit -m 'Fix TypeScript null check for paid_amount in reduce *)",
-      "Bash(git commit -m 'Add photo/evidence support for infractions *)"
+      "Bash(git commit -m 'Add photo/evidence support for infractions *)",
+      "Bash(npm run *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
