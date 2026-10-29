@@ -7,11 +7,12 @@ import { DocsTable, MaintTable, RepairsTable } from '@/components/Tables';
 import { MaintForm, RepairForm, VehicleForm } from '@/components/forms';
 import { removeStoredFiles } from '@/components/Attachments';
 import { useModal } from '@/components/useModal';
+import { KmTimeline } from '@/components/HistoryTimeline';
 
 export default function VehiculoDetalle() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { vehicles, drivers, repairs, maintenance, documents, attachments, settings, update, remove, reload } = useData();
+  const { vehicles, drivers, repairs, maintenance, documents, attachments, km_history, settings, update, remove, reload } = useData();
   const { el, open } = useModal();
   const v = vehicles.find((x) => x.id === id);
   if (!v) return <div className="empty">Vehículo no encontrado. <Link className="lk" href="/vehiculos">Volver</Link></div>;
@@ -56,6 +57,7 @@ export default function VehiculoDetalle() {
         <div><span>Gasto total registrado</span>{money(total)}</div>
       </div>
       {v.notes && <p className="muted">{v.notes}</p>}
+      <KmTimeline history={km_history.filter((k) => k.vehicle_id === v.id)} />
 
       <DocsTable owner={{ type: 'vehicle', id: v.id }} />
       <div className="bar" style={{ marginTop: 20 }}><h3 style={{ margin: 0 }}>Mantenimientos</h3><span className="sp" />

@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useData } from '@/lib/data';
 import { daysText, statusOf } from '@/lib/alerts';
 import { daysTo, fd, guard, money, num } from '@/lib/util';
@@ -67,8 +68,8 @@ export function RepairsTable({ list, showVehicle }: { list: Repair[]; showVehicl
         <tbody>{[...list].sort((a, b) => b.date.localeCompare(a.date)).map((r) => (
           <tr key={r.id}>
             {showVehicle && <td>{vehicles.find((v) => v.id === r.vehicle_id)?.plate ?? '—'}</td>}
-            <td>{fd(r.date)}</td>
-            <td>{r.description} <AttachmentList kind="repair" id={r.id} />{r.invoice && <div className="muted">Fact. {r.invoice}</div>}</td>
+            <td><Link className="lk" href={`/reparaciones/${r.id}`} style={{ textDecoration: 'none' }}>{fd(r.date)}</Link></td>
+            <td><Link className="lk" href={`/reparaciones/${r.id}`} style={{ textDecoration: 'none' }}>{r.description}</Link> <AttachmentList kind="repair" id={r.id} />{r.invoice && <div className="muted">Fact. {r.invoice}</div>}</td>
             <td>{workshops.find((w) => w.id === r.workshop_id)?.name ?? '—'}</td><td>{num(r.km)}</td><td>{money(r.cost)}</td>
             <td><Badge status={sc[r.status]}>{r.status}</Badge></td>
             <td style={{ whiteSpace: 'nowrap' }}>
@@ -99,7 +100,7 @@ export function MaintTable({ list, showVehicle }: { list: Maint[]; showVehicle: 
           return (
             <tr key={m.id}>
               {showVehicle && <td>{vehicles.find((v) => v.id === m.vehicle_id)?.plate ?? '—'}</td>}
-              <td>{m.type} <AttachmentList kind="maintenance" id={m.id} /></td><td>{fd(m.date)}</td><td>{num(m.km)}</td>
+              <td><Link className="lk" href={`/mantenimientos/${m.id}`} style={{ textDecoration: 'none' }}>{m.type}</Link> <AttachmentList kind="maintenance" id={m.id} /></td><td><Link className="lk" href={`/mantenimientos/${m.id}`} style={{ textDecoration: 'none' }}>{fd(m.date)}</Link></td><td>{num(m.km)}</td>
               <td>{workshops.find((w) => w.id === m.workshop_id)?.name ?? '—'}</td><td>{money(m.cost)}</td><td>{next}</td>
               <td style={{ whiteSpace: 'nowrap' }}>
                 <button className="b2 sm" onClick={() => open((c) => <MaintForm id={m.id} onClose={c} />)}>Editar</button>{' '}
