@@ -41,58 +41,91 @@ export async function generatePDF(elementId: string, filename: string) {
   }
 }
 
+function sanitizeFilename(filename: string): string {
+  return filename
+    .replace(/[/\\:?*"<>|]/g, '_')
+    .substring(0, 200);
+}
+
 export async function generateSimplePDF(data: {
   title: string;
   stats: Record<string, string | number>;
   tables: Array<{ name: string; headers: string[]; rows: (string | number)[][] }>;
-}) {
-  const pdf = new jsPDF();
-  let yPosition = 20;
+}): Promise<void> {
+  try {
+    const pdf = new jsPDF();
+    let yPosition = 20;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
 
-  // Título
-  pdf.setFontSize(16);
-  pdf.text(data.title, 20, yPosition);
-  yPosition += 15;
+    // Título
+    pdf.setFontSize(16);
+    pdf.text(data.title, 20, yPosition);
+    yPosition += 15;
 
-  // Estadísticas
-  pdf.setFontSize(11);
-  Object.entries(data.stats).forEach(([key, value]) => {
-    pdf.text(`${key}: ${value}`, 20, yPosition);
-    yPosition += 7;
-  });
-
-  yPosition += 5;
-
-  // Tablas
-  data.tables.forEach((table) => {
-    pdf.setFontSize(12);
-    pdf.text(table.name, 20, yPosition);
-    yPosition += 8;
-
-    // Encabezados
-    pdf.setFontSize(10);
-    pdf.setFillColor(240, 240, 240);
-    const colWidth = (pdf.internal.pageSize.getWidth() - 40) / table.headers.length;
-    table.headers.forEach((header, i) => {
-      pdf.rect(20 + i * colWidth, yPosition, colWidth, 7, 'F');
-      pdf.text(header, 22 + i * colWidth, yPosition + 5);
-    });
-    yPosition += 7;
-
-    // Filas
-    table.rows.forEach((row) => {
-      if (yPosition > 270) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-      row.forEach((cell, i) => {
-        pdf.text(String(cell), 22 + i * colWidth, yPosition + 5);
-      });
+    // Estadísticas
+    pdf.setFontSize(11);
+    Object.entries(data.stats).forEach(([key, value]) => {
+      pdf.text(`${key}: ${value}`, 20, yPosition);
       yPosition += 7;
     });
 
     yPosition += 5;
-  });
 
-  pdf.save(`${data.title.replace(/\s+/g, '_')}_${todayStr()}.pdf`);
+    // Tablas
+    data.tables.forEach((table) => {
+      // Page break si es necesario
+      if (yPosition > 250) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+
+      pdf.setFontSize(12);
+      pdf.text(table.name, 20, yPosition);
+      yPosition += 8;
+
+      // Encabezados
+      pdf.setFontSize(10);
+      pdf.setFillColor(240, 240, 240);
+      const colWidth = (pageWidth - 40) / table.headers.length;
+      table.headers.forEach((header, i) => {
+        pdf.rect(20 + i * colWidth, yPosition, colWidth, 7, 'F');
+        const truncatedHeader = header.length > 20 ? header.substring(0, 17) + '...' : header;
+        pdf.text(truncatedHeader, 22 + i * colWidth, yPosition + 5);
+      });
+      yPosition += 7;
+
+      // Filas con word wrapping
+      pdf.setFillColor(255, 255, 255);
+      pdf.setTextColor(0, 0, 0);
+      table.rows.forEach((row) => {
+        if (yPosition > pageHeight - 20) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+        const rowHeights = row.map((cell, i) => {
+          const cellText = String(cell);
+          const lines = pdf.splitTextToSize(cellText, colWidth - 4);
+          return lines.length * 5;
+        });
+        const maxHeight = Math.max(...rowHeights, 7);
+
+        row.forEach((cell, i) => {
+          const cellText = String(cell);
+          const lines = pdf.splitTextToSize(cellText, colWidth - 4);
+          pdf.rect(20 + i * colWidth, yPosition, colWidth, maxHeight);
+          pdf.text(lines, 22 + i * colWidth, yPosition + 4);
+        });
+        yPosition += maxHeight;
+      });
+
+      yPosition += 5;
+    });
+
+    const sanitized = sanitizeFilename(`${data.title}_${todayStr()}`);
+    pdf.save(`${sanitized}.pdf`);
+  } catch (error) {
+    console.error('Error en generateSimplePDF:', error);
+    throw error;
+  }
 }

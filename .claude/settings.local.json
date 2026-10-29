@@ -12,7 +12,11 @@
       "Bash(git commit -m 'Add infractions summary to dashboard *)",
       "Bash(git commit -m 'Add comprehensive reports page with filters and analytics *)",
       "Bash(npm install *)",
-      "Bash(git commit -m 'Add professional charts and PDF generation to reports *)"
+      "Bash(git commit -m 'Add professional charts and PDF generation to reports *)",
+      "Bash(git commit -m 'Fix TypeScript error in reports paid_amount calculation *)",
+      "Bash(git commit -m 'Fix TypeScript error in Pie chart label function *)",
+      "Bash(git commit -m 'Add prominent report generation button and improve filters UI *)",
+      "Bash(git commit -m 'Professional audit fixes for reports functionality *)"
     ]
   }
 }

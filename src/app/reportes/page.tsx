@@ -26,12 +26,19 @@ export default function Reportes() {
   const stats = useMemo(() => {
     const totalInfractions = filtered.length;
     const totalFines = filtered.reduce((sum, i) => sum + (i.fine_amount || 0), 0);
+
+    // Create Set for O(1) lookup instead of O(n*m) with .some()
+    const filteredInfractionIds = new Set(filtered.map((i) => i.id));
     const pendingFines = fines
-      .filter((f) => filtered.some((i) => i.id === f.infraction_id) && !f.paid_amount)
+      .filter((f) => filteredInfractionIds.has(f.infraction_id) && f.paid_amount === null)
       .reduce((sum, f) => sum + f.amount, 0);
     const paidFines = fines
-      .filter((f) => filtered.some((i) => i.id === f.infraction_id) && f.paid_amount)
-      .reduce((sum, f) => sum + (f.paid_amount || 0), 0);
+      .filter((f) => filteredInfractionIds.has(f.infraction_id) && f.paid_amount !== null)
+      .reduce((sum, f) => sum + f.paid_amount, 0);
+
+    // Create Map for O(1) driver/vehicle lookup
+    const driverMap = new Map(drivers.map((d) => [d.id, d.name]));
+    const vehicleMap = new Map(vehicles.map((v) => [v.id, v.plate]));
 
     const byType = filtered.reduce((acc, i) => {
       acc[i.type] = (acc[i.type] || 0) + 1;
@@ -39,8 +46,7 @@ export default function Reportes() {
     }, {} as Record<string, number>);
 
     const byDriver = filtered.reduce((acc, i) => {
-      const d = drivers.find((x) => x.id === i.driver_id);
-      const name = d?.name || 'Desconocido';
+      const name = driverMap.get(i.driver_id) || 'Desconocido';
       acc[name] = (acc[name] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -51,19 +57,19 @@ export default function Reportes() {
       return acc;
     }, {} as Record<string, number>);
 
-    return { totalInfractions, totalFines, pendingFines, paidFines, byType, byDriver, byMonth };
-  }, [filtered, fines, drivers]);
+    return { totalInfractions, totalFines, pendingFines, paidFines, byType, byDriver, byMonth, driverMap, vehicleMap };
+  }, [filtered, fines, drivers, vehicles]);
 
   const handlePrint = () => window.print();
 
   const handleDownloadCSV = () => {
     const rows = [['Conductor', 'Vehículo', 'Fecha', 'Tipo', 'N° Infracción', 'Multa ($)', 'Estado']];
     filtered.forEach((i) => {
-      const d = drivers.find((x) => x.id === i.driver_id);
-      const v = vehicles.find((x) => x.id === i.vehicle_id);
+      const driverName = stats.driverMap.get(i.driver_id) || '—';
+      const vehiclePlate = stats.vehicleMap.get(i.vehicle_id) || '—';
       rows.push([
-        d?.name || '—',
-        v?.plate || '—',
+        driverName,
+        vehiclePlate,
         i.date,
         i.type,
         i.infraction_number || '—',
@@ -73,12 +79,12 @@ export default function Reportes() {
     });
     const csv = rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
     const link = document.createElement('a');
-    link.href = `data:text/csv;charset=utf-8,﻿${csv}`;
+    link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
     link.download = `reportes_infracciones_${todayStr()}.csv`;
     link.click();
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     const pdfData = {
       title: `Reporte de Infracciones - ${todayStr()}`,
       stats: {
@@ -100,15 +106,23 @@ export default function Reportes() {
         {
           name: 'Detalle de Infracciones',
           headers: ['Conductor', 'Vehículo', 'Fecha', 'Tipo', 'Multa ($)', 'Estado'],
-          rows: filtered.map((i) => {
-            const d = drivers.find((x) => x.id === i.driver_id);
-            const v = vehicles.find((x) => x.id === i.vehicle_id);
-            return [d?.name || '—', v?.plate || '—', i.date, i.type, i.fine_amount ? i.fine_amount.toFixed(2) : '—', i.status];
-          }),
+          rows: filtered.map((i) => [
+            stats.driverMap.get(i.driver_id) || '—',
+            stats.vehicleMap.get(i.vehicle_id) || '—',
+            i.date,
+            i.type,
+            i.fine_amount ? i.fine_amount.toFixed(2) : '—',
+            i.status,
+          ]),
         },
       ],
     };
-    generateSimplePDF(pdfData);
+    try {
+      await generateSimplePDF(pdfData);
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      alert('Error al generar PDF');
+    }
   };
 
   return (
@@ -120,7 +134,14 @@ export default function Reportes() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>Tipo de Reporte</label>
-            <select value={reportType} onChange={(e) => setReportType(e.target.value as any)} style={{ width: '100%', padding: '8px' }}>
+            <select
+              value={reportType}
+              onChange={(e) => {
+                const val = e.target.value as 'monthly' | 'weekly' | 'by_driver' | 'by_vehicle' | 'pending';
+                setReportType(val);
+              }}
+              style={{ width: '100%', padding: '8px' }}
+            >
               <option value="monthly">Reporte Mensual</option>
               <option value="weekly">Reporte Semanal</option>
               <option value="by_driver">Por Conductor</option>
