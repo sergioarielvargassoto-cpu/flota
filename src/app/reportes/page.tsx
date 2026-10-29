@@ -31,7 +31,7 @@ export default function Reportes() {
       .reduce((sum, f) => sum + f.amount, 0);
     const paidFines = fines
       .filter((f) => filtered.some((i) => i.id === f.infraction_id) && f.paid_amount)
-      .reduce((sum, f) => sum + f.paid_amount, 0);
+      .reduce((sum, f) => sum + (f.paid_amount || 0), 0);
 
     const byType = filtered.reduce((acc, i) => {
       acc[i.type] = (acc[i.type] || 0) + 1;
