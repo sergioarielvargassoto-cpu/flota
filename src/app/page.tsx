@@ -9,7 +9,7 @@ import { Badge } from '@/components/Badge';
 export default function Panel() {
   const router = useRouter();
   const data = useData();
-  const { vehicles, drivers, settings: s } = data;
+  const { vehicles, drivers, infractions, fines, settings: s } = data;
   const [all, setAll] = useState(false);
   const [filter, setFilter] = useState('all');
   const pending = computeAlerts(data, false);
@@ -77,6 +77,37 @@ export default function Panel() {
         </table></div>
       ) : (
         <div className="empty">{vehicles.length || drivers.length ? '✅ No hay vencimientos próximos.' : 'Empezá cargando tus vehículos y choferes.'}</div>
+      )}
+
+      <h2 style={{ marginTop: '40px' }}>Infracciones</h2>
+      <div className="cards">
+        <div className="card"><div className="n" style={{ color: '#ff9800' }}>{infractions.filter((i) => i.status === 'Registrada').length}</div><div className="l">Registradas</div></div>
+        <div className="card"><div className="n" style={{ color: '#4caf50' }}>{infractions.filter((i) => i.status === 'Pagada').length}</div><div className="l">Pagadas</div></div>
+        <div className="card"><div className="n" style={{ color: '#999' }}>{infractions.filter((i) => i.status === 'Anulada').length}</div><div className="l">Anuladas</div></div>
+        <div className="card"><div className="n">${fines.reduce((sum, f) => sum + (f.paid_amount ? 0 : f.amount), 0).toFixed(2)}</div><div className="l">Multas pendientes</div></div>
+      </div>
+      <div className="bar">
+        <span className="sp" />
+        <button className="b1" onClick={() => router.push('/infracciones')}>Ver todas las infracciones ›</button>
+      </div>
+      {infractions.slice(0, 5).length ? (
+        <div className="tw"><table>
+          <thead><tr><th>Conductor</th><th>Vehículo</th><th>Fecha</th><th>Tipo</th><th>Multa ($)</th><th>Estado</th></tr></thead>
+          <tbody>{infractions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5).map((i) => {
+            const driver = drivers.find((d) => d.id === i.driver_id);
+            const vehicle = vehicles.find((v) => v.id === i.vehicle_id);
+            const statusColor: Record<string, string> = { 'Registrada': '#ff9800', 'Pagada': '#4caf50', 'Anulada': '#999' };
+            return (
+              <tr key={i.id} className="cl" onClick={() => router.push(`/infracciones/${i.id}`)}>
+                <td><b>{driver?.name || '—'}</b></td><td>{vehicle?.plate || '—'}</td><td>{i.date}</td><td>{i.type}</td>
+                <td>{i.fine_amount ? `$${i.fine_amount.toFixed(2)}` : '—'}</td>
+                <td><span style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: statusColor[i.status], color: '#fff', fontSize: '12px' }}>{i.status}</span></td>
+              </tr>
+            );
+          })}</tbody>
+        </table></div>
+      ) : (
+        <div className="empty">✅ Sin infracciones registradas.</div>
       )}
     </>
   );
