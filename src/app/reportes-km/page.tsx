@@ -9,7 +9,7 @@ import { ImportDialog } from '@/components/ImportDialog';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 export default function ReportesKm() {
-  const { km_reports, vehicles } = useData();
+  const { km_reports, vehicles, trips } = useData();
   const { importKmReport } = useImporters();
   const [rows, setRows] = useState<unknown[][] | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -46,6 +46,15 @@ export default function ReportesKm() {
   const filtered = showExcluded ? data : data.filter((x) => !x.excluded);
   const totalKm = filtered.reduce((s, d) => s + d.kmTotal, 0);
   const avgKm = filtered.length > 0 ? Math.round(totalKm / filtered.length) : 0;
+
+  // Velocidad: días que excedieron límite + máximo en esos días
+  const SPEED_LIMIT = 120;
+  const tripsInMonth = trips.filter((t) => {
+    const [ty, tm] = t.date.split('-').map(Number);
+    return ty === year && tm === m && (!branch || filtered.some((f) => f.r.vehicle_id === t.vehicle_id));
+  });
+  const excessDays = tripsInMonth.filter((t) => (t.max_speed ?? 0) > SPEED_LIMIT);
+  const maxExcessSpeed = excessDays.length > 0 ? Math.max(...excessDays.map((t) => t.max_speed ?? 0)) : 0;
 
   // Datos para gráficos
   const barData = filtered.map((d) => ({
@@ -113,6 +122,14 @@ export default function ReportesKm() {
             <div className="card">
               <div className="n">{filtered.length}</div>
               <div className="l">Vehículos reportados</div>
+            </div>
+            <div className="card" style={{ borderLeft: excessDays.length > 0 ? '4px solid #ef4444' : '4px solid #10b981' }}>
+              <div className="n" style={{ color: excessDays.length > 0 ? '#ef4444' : '#10b981' }}>{excessDays.length}</div>
+              <div className="l">Días que excedieron {SPEED_LIMIT} km/h</div>
+            </div>
+            <div className="card" style={{ borderLeft: maxExcessSpeed > 0 ? '4px solid #f59e0b' : '4px solid #6b7280' }}>
+              <div className="n" style={{ color: maxExcessSpeed > 0 ? '#f59e0b' : '#6b7280' }}>{maxExcessSpeed || '—'}</div>
+              <div className="l">Máx. velocidad excedida</div>
             </div>
           </div>
 
