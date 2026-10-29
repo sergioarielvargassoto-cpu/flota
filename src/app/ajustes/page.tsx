@@ -4,6 +4,7 @@ import { useData } from '@/lib/data';
 import { useSession } from '@/components/AuthGate';
 import { sb } from '@/lib/supabase';
 import { download, guard, todayStr } from '@/lib/util';
+import { auditKmConsistency } from '@/lib/audit';
 
 export default function Ajustes() {
   const d = useData();
@@ -11,6 +12,8 @@ export default function Ajustes() {
   const { settings: s, saveSettings } = d;
   const [perm, setPerm] = useState(() => (typeof Notification !== 'undefined' ? Notification.permission : 'no disponible'));
   const [lastBackup, setLastBackup] = useState(() => { try { return Number(localStorage.getItem('lastBackup') || 0); } catch { return 0; } });
+  const [auditResult, setAuditResult] = useState<any>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const numField = (k: 'd1' | 'd2' | 'd3' | 'km_alert' | 'service_km', label: string, min = 1) => (
     <div className="fg" key={k}><label>{label}</label>
@@ -47,6 +50,30 @@ export default function Ajustes() {
         <div className="card"><h3 style={{ marginTop: 0 }}>Respaldo de datos</h3>
           <p className="muted">Tus datos viven en Supabase. El plan gratuito <b>no incluye backups automáticos</b>, así que descargá una copia seguido (incluye todo salvo el contenido de los archivos adjuntos). Último respaldo: <b>{lastBackup ? new Date(lastBackup).toLocaleString('es-AR') : 'nunca'}</b></p>
           <button className="b1" onClick={exportBackup}>⬇ Descargar respaldo</button>
+        </div>
+        <div className="card"><h3 style={{ marginTop: 0 }}>Auditoría de Kilometraje</h3>
+          <p className="muted">Verifica la consistencia entre cambios manuales, datos importados y valores actuales.</p>
+          <button className="b2" onClick={() => guard(async () => { setAuditLoading(true); try { setAuditResult(await auditKmConsistency()); } finally { setAuditLoading(false); } })} disabled={auditLoading}>
+            {auditLoading ? 'Analizando...' : '🔍 Ejecutar auditoría'}
+          </button>
+          {auditResult && (
+            <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '6px', fontSize: '13px' }}>
+              <p><b>Resultado:</b> {auditResult.totalVehicles} vehículos analizados</p>
+              <p style={{ color: auditResult.summary.critical > 0 ? '#d32f2f' : auditResult.summary.warnings > 0 ? '#f57c00' : '#388e3c' }}>
+                🔴 {auditResult.summary.critical} críticos | 🟠 {auditResult.summary.warnings} advertencias | 🟢 {auditResult.summary.info} info
+              </p>
+              {auditResult.issues.length > 0 && (
+                <div style={{ marginTop: '12px', maxHeight: '300px', overflow: 'auto' }}>
+                  {auditResult.issues.slice(0, 10).map((issue: any, i: number) => (
+                    <div key={i} style={{ marginBottom: '8px', padding: '8px', backgroundColor: '#fff', borderLeft: `3px solid ${issue.severity === 'critical' ? '#d32f2f' : issue.severity === 'warning' ? '#f57c00' : '#2196f3'}`, borderRadius: '2px' }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{issue.type}:</span> {issue.message}
+                    </div>
+                  ))}
+                  {auditResult.issues.length > 10 && <p className="muted">... y {auditResult.issues.length - 10} más</p>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="card"><h3 style={{ marginTop: 0 }}>Sesión</h3>
           <p className="muted">Ingresaste como <b>{session?.user.email}</b></p>
