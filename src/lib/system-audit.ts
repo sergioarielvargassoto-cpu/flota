@@ -12,7 +12,7 @@ export async function systemAudit() {
     severity: 'critical' | 'warning' | 'info';
     message: string;
     count: number;
-    details?: any[];
+    details?: any;
   }[] = [];
 
   try {
