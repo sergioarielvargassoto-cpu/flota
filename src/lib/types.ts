@@ -2,7 +2,7 @@ export type Vehicle = {
   id: string; plate: string; type: string | null; brand: string | null; model: string | null;
   year: number | null; km: number | null; km_date: string | null; last_service_km: number | null;
   fuel_card: string | null; driver_id: string | null; status: 'Activo' | 'En taller' | 'Baja';
-  chassis: string | null; notes: string | null;
+  chassis: string | null; notes: string | null; branch: string; exclude_from_reports: boolean;
 };
 export type Driver = { id: string; name: string; dni: string | null; phone: string | null; notes: string | null };
 export type Doc = {
@@ -39,10 +39,15 @@ export type Fine = {
   paid_date: string | null; due_date: string | null; payment_method: string | null;
   receipt: string | null; notes: string | null;
 };
+export type KmReport = {
+  id: string; vehicle_id: string; month: number; year: number; km_total: number;
+  km_previous: number | null; km_by_day: Record<string, number> | null;
+  branch: string | null; imported_at: string; imported_from: string | null;
+};
 export type Settings = { id: number; company: string; d1: number; d2: number; d3: number; km_alert: number; service_km: number };
 
 export type TableName =
   | 'vehicles' | 'drivers' | 'documents' | 'workshops' | 'repairs'
-  | 'maintenance' | 'fuel_loads' | 'trips' | 'attachments' | 'infractions' | 'fines';
+  | 'maintenance' | 'fuel_loads' | 'trips' | 'attachments' | 'infractions' | 'fines' | 'km_reports';
 
 export type Status = 'vencido' | 'critico' | 'urgente' | 'proximo' | 'ok' | 'nd';

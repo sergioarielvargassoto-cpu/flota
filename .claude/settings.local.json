@@ -20,7 +20,12 @@
       "Bash(git commit -m 'Fix TypeScript null check for paid_amount in reduce *)",
       "Bash(git commit -m 'Add photo/evidence support for infractions *)",
       "Bash(npm run *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(grep -E \"\\\\.\\(xlsx|xls|csv\\)$\")",
+      "Bash(node -e ' *)",
+      "Bash(cp \"C:\\\\Users\\\\Usuario\\\\Downloads\\\\Distancias Diarias - Ref_419798.xlsx\" \"C:\\\\Users\\\\Usuario\\\\OneDrive\\\\Documents\\\\flota\\\\distancias_temp.xlsx\")",
+      "Bash(node)",
+      "Bash(cp *)"
     ]
   }
 }

@@ -28,6 +28,12 @@ export const FUEL_SPEC: ColSpec[] = [
   { k: 'r', l: 'Remito', re: /^remito$/ },
 ];
 
+export const KM_SPEC: ColSpec[] = [
+  { k: 'v', l: 'Vehículo (patente o marca/patente)', re: /^veh[ií]culo$|^patente|^dominio|^identificaci[ó]n/ },
+  { k: 'd', l: 'Día / Fecha', re: /^d[ií]a$|^fecha/ },
+  { k: 'c', l: 'Distancia (km calculados o reportados)', re: /distancia|^km$|kilometraje|calculada|reportada/ },
+];
+
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const title = (s: string) => s.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 const patOf = (s: unknown) => { const m = String(s ?? '').match(/\(([^)]+)\)/); return nrm(m ? m[1] : s); };
@@ -157,5 +163,93 @@ export function useImporters() {
     alert(`${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por inconsistentes (se marcan con ⚠).` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}`);
   }
 
-  return { importTrips, importFuel };
+  async function importKmReport(data: unknown[][], m: Record<string, number>, month: number, year: number, fileName: string) {
+    // Detectar si es formato Gestya (patente en paréntesis) o simple
+    const isGestya = data.some((r) => String(r[m.v] ?? '').includes('('));
+
+    const parsed = data.map((r) => {
+      const vehicleStr = String(r[m.v] ?? '').trim();
+      const pt = isGestya ? patOf(vehicleStr) : nrm(vehicleStr);
+      const brand = isGestya ? brandOf(vehicleStr) : '';
+      const fecha = pDate(r[m.d]);
+      const km = pNum(r[m.c]);
+      return { pt, brand, fecha, km: isNaN(km) ? 0 : Math.round(km * 100) / 100 };
+    }).filter((x) => x.pt && x.km > 0);
+
+    if (!parsed.length) return alert('No encontré filas con datos válidos (patente y km > 0).');
+
+    // Validar que todas las fechas sean del mes elegido
+    const outOfRange = parsed.filter((x) => {
+      const [y, m] = x.fecha.split('-').map(Number);
+      return y !== year || m !== month;
+    });
+    if (outOfRange.length) {
+      const oos = outOfRange.map((x) => `${x.pt}: ${x.fecha}`).slice(0, 5);
+      if (!confirm(`${outOfRange.length} filas están fuera del período ${year}-${String(month).padStart(2, '0')}:\n${oos.join('\n')}\n\n¿Continuar omitiendo estas filas?`)) return;
+    }
+
+    const filteredParsed = parsed.filter((x) => {
+      const [y, m] = x.fecha.split('-').map(Number);
+      return y === year && m === month;
+    });
+
+    const byPlate = await ensureVehicles(new Map(filteredParsed.map((x) => [x.pt, x.brand])));
+
+    // Agrupar por vehículo y calcular totales + desglose por día
+    const byVid = new Map<string, { v: Vehicle; km_total: number; km_by_day: Record<string, number> }>();
+    for (const x of filteredParsed) {
+      const v = byPlate.get(x.pt);
+      if (!v) continue;
+      if (!byVid.has(v.id)) byVid.set(v.id, { v, km_total: 0, km_by_day: {} });
+      const entry = byVid.get(v.id)!;
+      entry.km_total += x.km;
+      entry.km_by_day[x.fecha] = (entry.km_by_day[x.fecha] ?? 0) + x.km;
+    }
+
+    // Buscar km del mes anterior para calcular variación
+    const kmPrevMonth = await sb()
+      .from('km_reports')
+      .select('vehicle_id, km_total')
+      .eq('year', month === 1 ? year - 1 : year)
+      .eq('month', month === 1 ? 12 : month - 1);
+
+    const prevMap = new Map(
+      (kmPrevMonth.data ?? []).map((r: any) => [r.vehicle_id, r.km_total])
+    );
+
+    // Verificar si el mes ya existe
+    const existing = await sb()
+      .from('km_reports')
+      .select('vehicle_id')
+      .eq('year', year)
+      .eq('month', month);
+
+    if ((existing.data ?? []).length > 0) {
+      const replace = confirm(`Ya existe reporte para ${year}-${String(month).padStart(2, '0')}.\n\n¿Reemplazar datos?`);
+      if (!replace) return;
+      await sb().from('km_reports').delete().eq('year', year).eq('month', month);
+    }
+
+    // Insertar registros
+    const rows = [...byVid.entries()].map(([vid, { km_total, km_by_day }]) => ({
+      vehicle_id: vid,
+      month,
+      year,
+      km_total,
+      km_previous: prevMap.get(vid) || null,
+      km_by_day,
+      branch: byVid.get(vid)?.v.branch || 'Corrientes',
+      imported_from: fileName,
+    }));
+
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await sb().from('km_reports').insert(rows.slice(i, i + 200));
+      if (error) throw error;
+    }
+
+    await reload('km_reports', 'vehicles');
+    alert(`✅ ${rows.length} vehículos importados para ${year}-${String(month).padStart(2, '0')}.\n${outOfRange.length > 0 ? `(${outOfRange.length} filas omitidas por fecha)` : ''}`);
+  }
+
+  return { importTrips, importFuel, importKmReport };
 }
