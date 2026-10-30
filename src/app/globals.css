@@ -383,7 +383,8 @@ header nav a.on {
 }
 .logo {
   height: 28px;
-  width: auto;
+  width: 120px;
+  object-fit: contain;
   background: #fff;
   border-radius: 6px;
   padding: 2px 6px;
