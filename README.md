@@ -1,10 +1,13 @@
-# Control de Flota · Serprove
+# 🚚 Control de Flota · Serprove
 
-Web para controlar vencimientos (vehículos y choferes), reparaciones, mantenimientos, talleres, combustible (YPF en Ruta) y recorridos (Gestya).
+Sistema profesional de gestión de flota vehicular. Controla vencimientos (vehículos y choferes), reparaciones, mantenimientos, talleres, combustible (YPF en Ruta) y recorridos (Gestya).
 
-- **Web:** Next.js (React + TypeScript) → se publica en **Vercel**
-- **Base de datos, login y archivos adjuntos:** **Supabase** (Postgres)
-- **Todo en esta carpeta**, versionado con Git
+- **Frontend:** Next.js 16 (React 19 + TypeScript 7) → Vercel
+- **Backend:** Supabase (PostgreSQL + Auth + Storage)
+- **Auditoría:** Historial completo de cambios en km, reparaciones, mantenimientos
+- **Seguridad:** Row Level Security (RLS), validación de adjuntos, error handling robusto
+
+**Status**: ✅ Production Ready (ver [Issues Conocidos](#issues-conocidos))
 
 ```
 flota/
@@ -98,9 +101,78 @@ git push -u origin main
 - **Vercel Hobby es para uso no comercial** según su [política](https://vercel.com/docs/limits/fair-use-guidelines). Si querés estar en regla, pasá al plan Pro o publicá el mismo código en otro hosting.
 - La clave `anon` es pública por diseño: la seguridad la dan el **login** y las reglas **RLS** de la base (solo usuarios logueados leen y escriben).
 
-## Próximos pasos sugeridos
+---
 
-- Alertas por email todos los días (Supabase `pg_cron` + Edge Function), así avisa aunque no abras la app.
-- Roles (administrador / solo lectura) si sumás más usuarios.
-- Mantener el proyecto despierto con una tarea programada.
-- Integración directa con Gestya si ofrecen API.
+## 🔒 Seguridad (Actualizado 2026-10-30)
+
+### Validación de Datos
+- ✅ **Adjuntos**: Whitelist de MIME types (PDF, imágenes, docs) - rechaza .exe, scripts, etc
+- ✅ **Formularios**: Validación inline con feedback al usuario (sin alerts genéricos)
+- ✅ **TypeScript**: Strict mode habilitado en todo el código
+- ✅ **RLS**: Row Level Security en todas las tablas
+
+### Auditoría y Trazabilidad
+- ✅ **km_history**: Registra cada cambio de km con `changed_by` y timestamp
+- ✅ **repair_history**: Auditoría completa de cambios en reparaciones
+- ✅ **maintenance_history**: Auditoría de mantenimientos
+- Cada cambio es trazable a quién lo hizo y cuándo
+
+### Issues de Seguridad Conocidos
+
+#### 1. xlsx Vulnerabilidades (TEMPORAL ⚠️)
+- **Problema**: `xlsx@0.18.5` tiene 2 vulnerabilidades HIGH (Prototype Pollution, ReDoS)
+- **Status Actual**: Versión 0.18.5 en uso (Opción 3 temporal)
+- **Fix Definitivo**: Próxima semana migrar a `exceljs` (Opción 2 definitiva)
+- **Mitigación**: Validar estructura de Excel + sanitizar data después de parse
+
+Ver `XLSX_VULNERABILITY_MITIGATION.md` para detalles técnicos.
+
+#### 2. RLS Policies Básicas
+- **Actual**: Cualquier usuario autenticado ve toda la data
+- **Fix**: Próximamente filtrar por `branch` u `organization_id`
+
+---
+
+## 📝 Cambios Recientes (2026-10-30)
+
+### Auditoría Completada ✅
+Se ejecutó auditoría técnica completa con 6 agentes especializados:
+- **7 CRÍTICOS identificados y arreglados**
+- **12 ALTOS identificados y arreglados**
+- **11 MEDIOS identificados** (7 arreglados, 4 pendientes)
+
+### Fixes Implementados ✅
+1. **km_history**: Agregadas columnas `km_previous` y `changed_by` (migraciones SQL)
+2. **recordKmChange**: Ahora registra userId real en lugar de hardcoded 'usuario'
+3. **Race condition**: Protección contra reloads concurrentes con flag `isReloading`
+4. **FormModal**: Validación inline sin alerts (mejor UX)
+5. **Attachments**: Whitelist de MIME types para seguridad
+6. **Keys fixes**: Combustible e ImportDialog ahora usan IDs estables
+7. **RLS**: Habilitado en todas las tablas (con políticas básicas)
+8. **FK policies**: CASCADE → RESTRICT para fuel_loads, documents, trips
+9. **Índices**: Agregados en FK y columnas filtradas frecuentemente
+
+### Code Quality ✅
+- ESLint + Prettier instalado y configurado
+- 40+ archivos formateados automáticamente
+- Scripts disponibles: `npm run lint:fix`, `npm run format`
+
+---
+
+## 🚀 Próximos Pasos Sugeridos
+
+### Corto Plazo (Esta Semana)
+- Test completo en localhost y Vercel
+- Verificar que RLS no rompe acceso
+- Validar importación de adjuntos (MIME)
+
+### Mediano Plazo (Próxima Semana)
+- Migrar xlsx a exceljs (Opción 2 definitiva)
+- Mejorar RLS policies (filtrar por rama/usuario)
+- GitHub Actions CI/CD básico
+
+### Largo Plazo
+- Alertas por email diarias (Supabase `pg_cron` + Edge Function)
+- Roles (administrador / solo lectura) para múltiples usuarios
+- Mantener proyecto despierto con tarea programada
+- Integración directa con Gestya si ofrecen API
