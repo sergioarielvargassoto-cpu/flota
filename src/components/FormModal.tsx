@@ -24,7 +24,12 @@ export function FormModal({ title, fields, initial, onSave, onClose, files }: {
   );
   const [staged, setStaged] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
-  const set = (k: string, v: string) => setVals((p) => ({ ...p, [k]: v }));
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [errorField, setErrorField] = useState<string | null>(null);
+  const set = (k: string, v: string) => {
+    setVals((p) => ({ ...p, [k]: v }));
+    if (errorField === k) setFieldError(null);
+  };
 
   // agrupa los campos "half" de a pares
   const rows: Field[][] = [];
@@ -38,21 +43,24 @@ export function FormModal({ title, fields, initial, onSave, onClose, files }: {
   const input = (f: Field) => {
     const v = vals[f.k];
     const id = 'f_' + f.k;
+    const hasError = errorField === f.k;
+    const borderStyle = hasError ? { borderColor: 'var(--r)' } : {};
+
     if (f.t === 'select')
       return (
-        <select id={id} value={v} onChange={(e) => set(f.k, e.target.value)}>
+        <select id={id} value={v} onChange={(e) => set(f.k, e.target.value)} style={borderStyle}>
           {f.options!.map((o) => { const [val, lab] = Array.isArray(o) ? o : [o, o]; return <option key={val} value={val}>{lab}</option>; })}
         </select>
       );
-    if (f.t === 'textarea') return <textarea id={id} rows={3} value={v} onChange={(e) => set(f.k, e.target.value)} />;
+    if (f.t === 'textarea') return <textarea id={id} rows={3} value={v} onChange={(e) => set(f.k, e.target.value)} style={borderStyle} />;
     if (f.t === 'combo')
       return (
         <>
-          <input id={id} list={'dl_' + f.k} value={v} autoComplete="off" onChange={(e) => set(f.k, e.target.value)} />
+          <input id={id} list={'dl_' + f.k} value={v} autoComplete="off" onChange={(e) => set(f.k, e.target.value)} style={borderStyle} />
           <datalist id={'dl_' + f.k}>{(f.options ?? []).map((o) => <option key={String(o)} value={String(o)} />)}</datalist>
         </>
       );
-    return <input id={id} type={f.t ?? 'text'} step={f.step} value={v} onChange={(e) => set(f.k, e.target.value)} />;
+    return <input id={id} type={f.t ?? 'text'} step={f.step} value={v} onChange={(e) => set(f.k, e.target.value)} style={borderStyle} />;
   };
 
   return (
@@ -62,7 +70,14 @@ export function FormModal({ title, fields, initial, onSave, onClose, files }: {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            for (const f of fields) if (f.req && !String(vals[f.k]).trim()) return alert('Completá: ' + f.l);
+            for (const f of fields) {
+              if (f.req && !String(vals[f.k]).trim()) {
+                setFieldError('Este campo es requerido');
+                setErrorField(f.k);
+                return;
+              }
+            }
+            setFieldError(null);
             const out: Values = {};
             for (const f of fields) {
               const raw = String(vals[f.k]).trim();
@@ -70,10 +85,13 @@ export function FormModal({ title, fields, initial, onSave, onClose, files }: {
             }
             setBusy(true);
             try { await onSave(out, staged); onClose(); }
-            catch (err) { alert('No se pudo guardar:\n' + (err instanceof Error ? err.message : (err as { message?: string })?.message ?? String(err))); }
+            catch (err) { setFieldError('No se pudo guardar: ' + (err instanceof Error ? err.message : (err as { message?: string })?.message ?? String(err))); setErrorField('_form'); }
             finally { setBusy(false); }
           }}
         >
+          {fieldError && errorField !== '_form' && (
+            <div style={{ color: 'var(--r)', fontSize: '12px', marginBottom: '12px' }}>⚠ {fieldError}</div>
+          )}
           {rows.map((r, i) => {
             const cells = r.map((f) => (
               <div className="fg" key={f.k}>
@@ -83,6 +101,11 @@ export function FormModal({ title, fields, initial, onSave, onClose, files }: {
             ));
             return r.length === 2 ? <div className="row2" key={i}>{cells}</div> : cells;
           })}
+          {fieldError && errorField === '_form' && (
+            <div style={{ color: 'var(--r)', fontSize: '13px', marginTop: '12px', padding: '8px', backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: '6px', borderLeft: '3px solid var(--r)' }}>
+              {fieldError}
+            </div>
+          )}
           {files && (
             <div className="fg">
               <label>Adjuntar copia (foto / PDF, máx. 10 MB)</label>

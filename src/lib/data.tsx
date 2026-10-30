@@ -54,16 +54,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isReloading, setIsReloading] = useState(false);
 
   const reload = useCallback(async (...tables: TableName[]) => {
-    const list = tables.length ? tables : ALL;
-    const res = await Promise.all(list.map((t) => fetchAll(t)));
-    setDb((prev) => {
-      const next = { ...prev } as Record<string, unknown>;
-      list.forEach((t, i) => (next[t] = res[i]));
-      return next as Tables;
-    });
-  }, []);
+    if (isReloading) return;
+    setIsReloading(true);
+    try {
+      const list = tables.length ? tables : ALL;
+      const res = await Promise.all(list.map((t) => fetchAll(t)));
+      setDb((prev) => {
+        const next = { ...prev } as Record<string, unknown>;
+        list.forEach((t, i) => (next[t] = res[i]));
+        return next as Tables;
+      });
+    } finally {
+      setIsReloading(false);
+    }
+  }, [isReloading]);
 
   useEffect(() => {
     (async () => {

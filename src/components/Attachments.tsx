@@ -10,10 +10,24 @@ const COL: Record<ParentKind, 'document_id' | 'repair_id' | 'maintenance_id' | '
 };
 const safe = (n: string) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
 
+// Whitelist de MIME types permitidos
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
 /** Sube archivos al bucket privado "adjuntos" y los asocia a un registro. */
 export async function uploadFiles(kind: ParentKind, parentId: string, files: File[]) {
   for (const f of files) {
     if (f.size > 10 * 1024 * 1024) { alert(`${f.name} supera 10 MB. Comprimila antes de adjuntar.`); continue; }
+    if (!ALLOWED_MIME_TYPES.has(f.type)) { alert(`${f.name} no es un tipo de archivo permitido. Usa: PDF, imágenes, o documentos.`); continue; }
     const path = `${crypto.randomUUID()}-${safe(f.name)}`;
     const up = await sb().storage.from('adjuntos').upload(path, f);
     if (up.error) throw up.error;

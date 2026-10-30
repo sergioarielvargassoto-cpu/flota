@@ -27,7 +27,7 @@ export function ImportDialog({ title, rows, spec, onConfirm, onClose }: {
               <label>{s.l}</label>
               <select value={map[s.k]} onChange={(e) => setMap({ ...map, [s.k]: +e.target.value })}>
                 <option value={-1}>— no usar —</option>
-                {det.headers.map((h, i) => <option key={i} value={i}>{h || `Columna ${i + 1}`}</option>)}
+                {det.headers.map((h, i) => <option key={`${i}-${h}`} value={i}>{h || `Columna ${i + 1}`}</option>)}
               </select>
             </div>
           ))}

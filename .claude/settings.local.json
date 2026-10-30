@@ -27,7 +27,9 @@
       "Bash(node)",
       "Bash(cp *)",
       "Bash(git commit *)",
-      "Bash(python3 audit.py)"
+      "Bash(python3 audit.py)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(npm audit *)"
     ]
   }
 }

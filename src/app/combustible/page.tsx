@@ -64,8 +64,8 @@ export default function Combustible() {
           <h3>Resumen por vehículo</h3>
           <div className="tw"><table>
             <thead><tr><th>Vehículo</th><th>Cargas</th><th>Litros</th><th>Importe s/IVA</th><th>$/litro</th><th>Consumo (por odómetro)</th></tr></thead>
-            <tbody>{sum.map((x, i) => (
-              <tr key={i} className="cl" onClick={() => x.v && setFv(x.v.id)}>
+            <tbody>{sum.map((x) => (
+              <tr key={x.v?.id ?? 'unknown'} className="cl" onClick={() => x.v && setFv(x.v.id)}>
                 <td><b>{x.v?.plate ?? '—'}</b></td><td>{x.n}</td><td>{num(Math.round(x.lit))}</td><td>{money(Math.round(x.imp))}</td>
                 <td>{x.lit ? money(Math.round(x.imp / x.lit)) : '—'}</td><td>{x.cons}</td>
               </tr>

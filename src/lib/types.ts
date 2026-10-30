@@ -1,12 +1,16 @@
+export type VehicleType = 'Camión' | 'Utilitario' | 'Camioneta' | 'Furgón' | 'Acoplado' | 'Auto' | 'Moto';
+export type VehicleStatus = 'Activo' | 'En taller' | 'Baja';
+export type DocType = 'Licencia' | 'VTV' | 'Seguro' | 'Verificación' | 'Registración' | 'RTO' | 'Otro';
+
 export type Vehicle = {
-  id: string; plate: string; type: string | null; brand: string | null; model: string | null;
+  id: string; plate: string; type: VehicleType | null; brand: string | null; model: string | null;
   year: number | null; km: number | null; km_date: string | null; last_service_km: number | null;
-  fuel_card: string | null; driver_id: string | null; status: 'Activo' | 'En taller' | 'Baja';
+  fuel_card: string | null; driver_id: string | null; status: VehicleStatus;
   chassis: string | null; notes: string | null; branch: string; provincia: string | null; exclude_from_reports: boolean;
 };
 export type Driver = { id: string; name: string; dni: string | null; phone: string | null; notes: string | null };
 export type Doc = {
-  id: string; vehicle_id: string | null; driver_id: string | null; doc_type: string;
+  id: string; vehicle_id: string | null; driver_id: string | null; doc_type: DocType;
   expires_on: string | null; reference: string | null; notes: string | null;
 };
 export type Workshop = { id: string; name: string; phone: string | null; specialty: string | null; address: string | null; notes: string | null };
