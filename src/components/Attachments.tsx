@@ -61,10 +61,20 @@ export async function removeStoredFiles(list: Attachment[]) {
 }
 
 export function openAttachment(a: Attachment) {
+  // La pestaña se abre sincrónicamente dentro del clic: si se abre después del await,
+  // el bloqueador de ventanas emergentes la descarta sin avisar.
+  const win = window.open('', '_blank');
+  if (win) win.document.title = a.name;
   guard(async () => {
-    const { data, error } = await sb().storage.from('adjuntos').createSignedUrl(a.path, 120);
-    if (error) throw error;
-    window.open(data.signedUrl, '_blank');
+    try {
+      const { data, error } = await sb().storage.from('adjuntos').createSignedUrl(a.path, 120);
+      if (error) throw error;
+      if (win) win.location.href = data.signedUrl;
+      else window.location.assign(data.signedUrl);
+    } catch (e) {
+      win?.close();
+      throw e;
+    }
   });
 }
 
