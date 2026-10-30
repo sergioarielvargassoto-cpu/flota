@@ -59,7 +59,7 @@ export function calcularAnalisisConductores(
   fuel_loads: Fuel[],
   mes?: number,
   ano?: number,
-  branch?: string,
+  branch?: string
 ): AnalisisConductor[] {
   const driverMap = new Map(drivers.map((d) => [d.id, d]));
   const vehiclesByDriver = new Map<string, Vehicle[]>();
@@ -79,12 +79,13 @@ export function calcularAnalisisConductores(
 
     // Infracciones
     const infraccionesDelConductor = infractions.filter((i) => i.driver_id === driver.id);
-    const infraccionesFiltradas = mes && ano
-      ? infraccionesDelConductor.filter((i) => {
-          const [y, m] = i.date.split('-').map(Number);
-          return y === ano && m === mes;
-        })
-      : infraccionesDelConductor;
+    const infraccionesFiltradas =
+      mes && ano
+        ? infraccionesDelConductor.filter((i) => {
+            const [y, m] = i.date.split('-').map(Number);
+            return y === ano && m === mes;
+          })
+        : infraccionesDelConductor;
 
     const totalInfracciones = infraccionesFiltradas.length;
     const infraccionesPendientes = infraccionesFiltradas.filter((i) => i.status !== 'Pagada').length;
@@ -92,24 +93,26 @@ export function calcularAnalisisConductores(
 
     // Viajes y excesos
     const viajesDelConductor = trips.filter((t) => vehicleIds.has(t.vehicle_id));
-    const viajesFiltrados = mes && ano
-      ? viajesDelConductor.filter((t) => {
-          const [y, m] = t.date.split('-').map(Number);
-          return y === ano && m === mes;
-        })
-      : viajesDelConductor;
+    const viajesFiltrados =
+      mes && ano
+        ? viajesDelConductor.filter((t) => {
+            const [y, m] = t.date.split('-').map(Number);
+            return y === ano && m === mes;
+          })
+        : viajesDelConductor;
 
     const diasConExceso = viajesFiltrados.filter((t) => (t.max_speed ?? 0) > 120).length;
     const diasTotales = new Set(viajesFiltrados.map((t) => t.date)).size;
 
     // Combustible y km
     const combustibleDelConductor = fuel_loads.filter((f) => vehicleIds.has(f.vehicle_id));
-    const combustibleFiltrado = mes && ano
-      ? combustibleDelConductor.filter((f) => {
-          const [y, m] = f.date.split('-').map(Number);
-          return y === ano && m === mes;
-        })
-      : combustibleDelConductor;
+    const combustibleFiltrado =
+      mes && ano
+        ? combustibleDelConductor.filter((f) => {
+            const [y, m] = f.date.split('-').map(Number);
+            return y === ano && m === mes;
+          })
+        : combustibleDelConductor;
 
     const litrosTotal = combustibleFiltrado.reduce((s, f) => s + f.liters, 0);
     const kmTotal = viajesFiltrados.reduce((s, t) => s + t.km_calc, 0);
@@ -152,7 +155,7 @@ export function calcularAnalisisCostos(
   kmReports: any[], // KmReport[]
   mes?: number,
   ano?: number,
-  branch?: string,
+  branch?: string
 ): AnalisisCosto[] {
   const result: AnalisisCosto[] = [];
 
@@ -161,32 +164,35 @@ export function calcularAnalisisCostos(
 
     // Combustible
     const combustibleVehicle = fuel_loads.filter((f) => f.vehicle_id === vehicle.id);
-    const combustibleFiltrado = mes && ano
-      ? combustibleVehicle.filter((f) => {
-          const [y, m] = f.date.split('-').map(Number);
-          return y === ano && m === mes;
-        })
-      : combustibleVehicle;
+    const combustibleFiltrado =
+      mes && ano
+        ? combustibleVehicle.filter((f) => {
+            const [y, m] = f.date.split('-').map(Number);
+            return y === ano && m === mes;
+          })
+        : combustibleVehicle;
     const costoCombustible = combustibleFiltrado.reduce((s, f) => s + (f.amount ?? 0), 0);
 
     // Reparaciones
     const reparacionesVehicle = repairs.filter((r) => r.vehicle_id === vehicle.id);
-    const reparacionesFiltradas = mes && ano
-      ? reparacionesVehicle.filter((r) => {
-          const [y, m] = r.date.split('-').map(Number);
-          return y === ano && m === mes;
-        })
-      : reparacionesVehicle;
+    const reparacionesFiltradas =
+      mes && ano
+        ? reparacionesVehicle.filter((r) => {
+            const [y, m] = r.date.split('-').map(Number);
+            return y === ano && m === mes;
+          })
+        : reparacionesVehicle;
     const costoReparaciones = reparacionesFiltradas.reduce((s, r) => s + (r.cost ?? 0), 0);
 
     // Mantenimiento
     const mantenimientoVehicle = maintenance.filter((m) => m.vehicle_id === vehicle.id);
-    const mantenimientoFiltrado = mes && ano
-      ? mantenimientoVehicle.filter((m) => {
-          const [y, md] = m.date.split('-').map(Number);
-          return y === ano && md === mes;
-        })
-      : mantenimientoVehicle;
+    const mantenimientoFiltrado =
+      mes && ano
+        ? mantenimientoVehicle.filter((m) => {
+            const [y, md] = m.date.split('-').map(Number);
+            return y === ano && md === mes;
+          })
+        : mantenimientoVehicle;
     const costoMantenimiento = mantenimientoFiltrado.reduce((s, m) => s + (m.cost ?? 0), 0);
 
     // Multas
@@ -194,19 +200,18 @@ export function calcularAnalisisCostos(
     const relaciones = kmReports.filter((kr: any) => kr.vehicle_id === vehicle.id);
 
     const multasVehicle = infractions.filter((inf) => inf.vehicle_id === vehicle.id);
-    const multasFiltradas = mes && ano
-      ? multasVehicle.filter((inf) => {
-          const [y, m] = inf.date.split('-').map(Number);
-          return y === ano && m === mes;
-        })
-      : multasVehicle;
+    const multasFiltradas =
+      mes && ano
+        ? multasVehicle.filter((inf) => {
+            const [y, m] = inf.date.split('-').map(Number);
+            return y === ano && m === mes;
+          })
+        : multasVehicle;
     const costoMultas = multasFiltradas.reduce((s, inf) => s + (inf.fine_amount ?? 0), 0);
 
     // KM
     const kmVehicle = kmReports.filter((kr: any) => kr.vehicle_id === vehicle.id);
-    const kmFiltrado = mes && ano
-      ? kmVehicle.filter((km: any) => km.year === ano && km.month === mes)
-      : kmVehicle;
+    const kmFiltrado = mes && ano ? kmVehicle.filter((km: any) => km.year === ano && km.month === mes) : kmVehicle;
     const kmRecorridos = kmFiltrado.reduce((s, km: any) => s + km.km_total, 0);
 
     const totalCostos = costoCombustible + costoReparaciones + costoMantenimiento + costoMultas;
@@ -219,7 +224,16 @@ export function calcularAnalisisCostos(
     if (mes && ano) {
       const mesPasado = mes === 1 ? 12 : mes - 1;
       const anoPasado = mes === 1 ? ano - 1 : ano;
-      const costoMesPasado = calcularCostoMes(vehicle.id, mesPasado, anoPasado, fuel_loads, repairs, maintenance, infractions, kmReports);
+      const costoMesPasado = calcularCostoMes(
+        vehicle.id,
+        mesPasado,
+        anoPasado,
+        fuel_loads,
+        repairs,
+        maintenance,
+        infractions,
+        kmReports
+      );
       if (costoMesPasado > 0 && costoPorKm > 0) {
         variacionMesAnterior = Math.round(((costoPorKm - costoMesPasado) / costoMesPasado) * 100);
       }
@@ -227,7 +241,15 @@ export function calcularAnalisisCostos(
 
     if (ano) {
       const anoAnterior = ano - 1;
-      const costoAnoAnterior = calcularCostoAno(vehicle.id, anoAnterior, fuel_loads, repairs, maintenance, infractions, kmReports);
+      const costoAnoAnterior = calcularCostoAno(
+        vehicle.id,
+        anoAnterior,
+        fuel_loads,
+        repairs,
+        maintenance,
+        infractions,
+        kmReports
+      );
       if (costoAnoAnterior > 0 && costoPorKm > 0) {
         variacionAnoAnterior = Math.round(((costoPorKm - costoAnoAnterior) / costoAnoAnterior) * 100);
       }
@@ -262,13 +284,43 @@ function calcularCostoMes(
   repairs: Repair[],
   maintenance: Maint[],
   infractions: Infraction[],
-  kmReports: any[],
+  kmReports: any[]
 ): number {
-  const f = fuel_loads.filter((f) => f.vehicle_id === vehicleId && f.date.split('-').map(Number)[0] === ano && f.date.split('-').map(Number)[1] === mes).reduce((s, f) => s + (f.amount ?? 0), 0);
-  const r = repairs.filter((r) => r.vehicle_id === vehicleId && r.date.split('-').map(Number)[0] === ano && r.date.split('-').map(Number)[1] === mes).reduce((s, r) => s + (r.cost ?? 0), 0);
-  const m = maintenance.filter((m) => m.vehicle_id === vehicleId && m.date.split('-').map(Number)[0] === ano && m.date.split('-').map(Number)[1] === mes).reduce((s, m) => s + (m.cost ?? 0), 0);
-  const inf = infractions.filter((i) => i.vehicle_id === vehicleId && i.date.split('-').map(Number)[0] === ano && i.date.split('-').map(Number)[1] === mes).reduce((s, i) => s + (i.fine_amount ?? 0), 0);
-  const km = kmReports.filter((kr: any) => kr.vehicle_id === vehicleId && kr.year === ano && kr.month === mes).reduce((s, km: any) => s + km.km_total, 0);
+  const f = fuel_loads
+    .filter(
+      (f) =>
+        f.vehicle_id === vehicleId &&
+        f.date.split('-').map(Number)[0] === ano &&
+        f.date.split('-').map(Number)[1] === mes
+    )
+    .reduce((s, f) => s + (f.amount ?? 0), 0);
+  const r = repairs
+    .filter(
+      (r) =>
+        r.vehicle_id === vehicleId &&
+        r.date.split('-').map(Number)[0] === ano &&
+        r.date.split('-').map(Number)[1] === mes
+    )
+    .reduce((s, r) => s + (r.cost ?? 0), 0);
+  const m = maintenance
+    .filter(
+      (m) =>
+        m.vehicle_id === vehicleId &&
+        m.date.split('-').map(Number)[0] === ano &&
+        m.date.split('-').map(Number)[1] === mes
+    )
+    .reduce((s, m) => s + (m.cost ?? 0), 0);
+  const inf = infractions
+    .filter(
+      (i) =>
+        i.vehicle_id === vehicleId &&
+        i.date.split('-').map(Number)[0] === ano &&
+        i.date.split('-').map(Number)[1] === mes
+    )
+    .reduce((s, i) => s + (i.fine_amount ?? 0), 0);
+  const km = kmReports
+    .filter((kr: any) => kr.vehicle_id === vehicleId && kr.year === ano && kr.month === mes)
+    .reduce((s, km: any) => s + km.km_total, 0);
   const totalCostos = f + r + m + inf;
   return km > 0 ? Math.round((totalCostos / km) * 100) / 100 : 0;
 }
@@ -280,13 +332,23 @@ function calcularCostoAno(
   repairs: Repair[],
   maintenance: Maint[],
   infractions: Infraction[],
-  kmReports: any[],
+  kmReports: any[]
 ): number {
-  const f = fuel_loads.filter((f) => f.vehicle_id === vehicleId && f.date.split('-').map(Number)[0] === ano).reduce((s, f) => s + (f.amount ?? 0), 0);
-  const r = repairs.filter((r) => r.vehicle_id === vehicleId && r.date.split('-').map(Number)[0] === ano).reduce((s, r) => s + (r.cost ?? 0), 0);
-  const m = maintenance.filter((m) => m.vehicle_id === vehicleId && m.date.split('-').map(Number)[0] === ano).reduce((s, m) => s + (m.cost ?? 0), 0);
-  const inf = infractions.filter((i) => i.vehicle_id === vehicleId && i.date.split('-').map(Number)[0] === ano).reduce((s, i) => s + (i.fine_amount ?? 0), 0);
-  const km = kmReports.filter((kr: any) => kr.vehicle_id === vehicleId && kr.year === ano).reduce((s, km: any) => s + km.km_total, 0);
+  const f = fuel_loads
+    .filter((f) => f.vehicle_id === vehicleId && f.date.split('-').map(Number)[0] === ano)
+    .reduce((s, f) => s + (f.amount ?? 0), 0);
+  const r = repairs
+    .filter((r) => r.vehicle_id === vehicleId && r.date.split('-').map(Number)[0] === ano)
+    .reduce((s, r) => s + (r.cost ?? 0), 0);
+  const m = maintenance
+    .filter((m) => m.vehicle_id === vehicleId && m.date.split('-').map(Number)[0] === ano)
+    .reduce((s, m) => s + (m.cost ?? 0), 0);
+  const inf = infractions
+    .filter((i) => i.vehicle_id === vehicleId && i.date.split('-').map(Number)[0] === ano)
+    .reduce((s, i) => s + (i.fine_amount ?? 0), 0);
+  const km = kmReports
+    .filter((kr: any) => kr.vehicle_id === vehicleId && kr.year === ano)
+    .reduce((s, km: any) => s + km.km_total, 0);
   const totalCostos = f + r + m + inf;
   return km > 0 ? Math.round((totalCostos / km) * 100) / 100 : 0;
 }
@@ -299,7 +361,7 @@ export function calcularComparativasSucursales(
   conductores: AnalisisConductor[],
   costos: AnalisisCosto[],
   drivers: Driver[],
-  vehicles: Vehicle[],
+  vehicles: Vehicle[]
 ): ComparativaSucursal[] {
   const branches = [...new Set(vehicles.map((v) => v.branch))];
   const result: ComparativaSucursal[] = [];
@@ -314,12 +376,21 @@ export function calcularComparativasSucursales(
 
     const totalKm = costosBranch.reduce((s, c) => s + c.kmRecorridos, 0);
     const totalCombustible = costosBranch.reduce((s, c) => s + c.combustible, 0);
-    const costPromedioKm = costosBranch.length > 0 ? Math.round((costosBranch.reduce((s, c) => s + c.costoPorKm, 0) / costosBranch.length) * 100) / 100 : 0;
+    const costPromedioKm =
+      costosBranch.length > 0
+        ? Math.round((costosBranch.reduce((s, c) => s + c.costoPorKm, 0) / costosBranch.length) * 100) / 100
+        : 0;
     const totalInfracciones = conductoresBranch.reduce((s, c) => s + c.totalInfracciones, 0);
     const cantidadConductores = new Set(conductoresBranch.map((c) => c.driver_id)).size;
     const cantidadVehiculos = vehiculosBranch.length;
-    const ratingSeguridadPromedio = conductoresBranch.length > 0 ? Math.round(conductoresBranch.reduce((s, c) => s + c.ratingSeguridad, 0) / conductoresBranch.length) : 0;
-    const eficienciaPromedio = conductoresBranch.length > 0 ? Math.round((conductoresBranch.reduce((s, c) => s + c.eficiencia, 0) / conductoresBranch.length) * 100) / 100 : 0;
+    const ratingSeguridadPromedio =
+      conductoresBranch.length > 0
+        ? Math.round(conductoresBranch.reduce((s, c) => s + c.ratingSeguridad, 0) / conductoresBranch.length)
+        : 0;
+    const eficienciaPromedio =
+      conductoresBranch.length > 0
+        ? Math.round((conductoresBranch.reduce((s, c) => s + c.eficiencia, 0) / conductoresBranch.length) * 100) / 100
+        : 0;
 
     result.push({
       branch,

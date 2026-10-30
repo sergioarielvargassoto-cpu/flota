@@ -39,7 +39,10 @@ export function detectColumns(rows: unknown[][], spec: ColSpec[]) {
   let best = -1;
   rows.slice(0, 25).forEach((r, i) => {
     const score = r.filter((c) => matchesSpec(String(c))).length * 10 + r.filter((c) => String(c).trim() !== '').length;
-    if (score > best) { best = score; hi = i; }
+    if (score > best) {
+      best = score;
+      hi = i;
+    }
   });
   const headers = rows[hi].map((c) => String(c).trim());
   const used = new Set<number>();

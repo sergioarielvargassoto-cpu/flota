@@ -9,11 +9,13 @@
 ## 📊 Análisis 1: Conductores (2.5h)
 
 ### Datos Necesarios
+
 - `infractions` → infracciones por conductor
 - `trips` → máx velocidad por conductor (via vehicle_id → driver_id)
 - `fuel_loads` → combustible consumido
 
 ### Métricas por Conductor
+
 ```
 - Total infracciones (count)
 - Infracciones pendientes de pago (status != 'Pagada')
@@ -25,6 +27,7 @@
 ```
 
 ### Componentes
+
 - **Página:** `/reportes-conductores`
 - **Tabla:** Conductor | Infracciones | Pendientes | Multas | Días exceso | Eficiencia | Rating
 - **Filtros:** Mes, Año, Sucursal
@@ -39,6 +42,7 @@
 ## 💰 Análisis 2: Costos por Vehículo (2.5h)
 
 ### Datos Necesarios
+
 - `fuel_loads` → costo combustible
 - `repairs` → costo reparaciones
 - `maintenance` → costo mantenimiento
@@ -46,6 +50,7 @@
 - `km_reports` → km recorridos
 
 ### Métricas por Vehículo
+
 ```
 - Costo combustible (sum amount)
 - Costo reparaciones (sum cost)
@@ -59,6 +64,7 @@
 ```
 
 ### Componentes
+
 - **Página:** `/reportes-costos`
 - **Tabla:** Patente | Combustible | Reparaciones | Mantenimiento | Multas | Total | Costo/km
 - **Filtros:** Mes, Año, Sucursal, Tipo gasto
@@ -73,10 +79,12 @@
 ## 🏢 Análisis 3: Comparativas por Sucursal (1.5h)
 
 ### Datos Necesarios
+
 - `vehicles.branch` → sucursal
 - Todos los análisis anteriores agrupados por branch
 
 ### Métricas por Sucursal (mes/año)
+
 ```
 - Total km
 - Total combustible (litros)
@@ -89,6 +97,7 @@
 ```
 
 ### Componentes
+
 - **Sección:** Tab en dashboard o página `/reportes/sucursales`
 - **Tabla:** Sucursal | Km | Combustible | Costo/km | Infracciones | Rating | Eficiencia
 - **Gráficos:**
@@ -157,28 +166,33 @@ COMPARATIVAS SUCURSAL
 ## 📋 Fases de Implementación
 
 ### Fase 1: Helpers & Tipos (30 min)
+
 - [ ] Crear tipos TypeScript para cada análisis
 - [ ] Funciones de cálculo reutilizables
 - [ ] Utilidades de formateo
 
 ### Fase 2: Análisis Conductores (2h)
+
 - [ ] Página `/reportes-conductores`
 - [ ] Tabla + gráficos
 - [ ] PDF de reporte
 - [ ] Filtros (mes, año, sucursal)
 
 ### Fase 3: Análisis Costos (2h)
+
 - [ ] Página `/reportes-costos`
 - [ ] Tabla + gráficos
 - [ ] PDF de reporte
 - [ ] Filtros + comparativas
 
 ### Fase 4: Comparativas Sucursal (1.5h)
+
 - [ ] Sección en dashboard o nueva página
 - [ ] Tabla comparativa
 - [ ] Gráficos de benchmark
 
 ### Fase 5: Pulido (30 min)
+
 - [ ] Build + testing
 - [ ] Commit + deploy
 - [ ] Actualizar memoria
@@ -188,24 +202,28 @@ COMPARATIVAS SUCURSAL
 ## ✨ Diferenciales Profesionales
 
 ✅ **Reutilización de código:**
+
 - Mismo hook `useData()`
 - Mismo patrón ImportDialog
 - Mismos gráficos Recharts
 - Mismo generador jsPDF
 
 ✅ **Consistencia visual:**
+
 - Colores coherentes por sucursal
 - Cards KPI iguales que en km_reports
 - Tablas con mismo estilo
 - PDFs profesionales
 
 ✅ **Performance:**
+
 - Cálculos en memoria (no queries complejas)
 - Maps/Sets para O(1) lookups
 - Memoización donde aplique
 - Gráficos renderizados dinámicamente
 
 ✅ **UX:**
+
 - Filtros con validación
 - Comparativas periodo anterior automáticas
 - Tooltips en gráficos
@@ -216,6 +234,7 @@ COMPARATIVAS SUCURSAL
 ## 📝 Notas Técnicas
 
 ### Cálculos Eficientes
+
 ```typescript
 // En lugar de queries complejas, usar:
 const driverStats = new Map();
@@ -230,6 +249,7 @@ for (const infraction of infractions) {
 ```
 
 ### Rating de Seguridad (0-100)
+
 ```
 base = 100
 - 15 por cada infracción
@@ -239,6 +259,7 @@ base = 100
 ```
 
 ### Costo por KM
+
 ```
 total_costo / km_recorridos
 = (combustible + reparaciones + mantenimiento + multas) / km
@@ -248,13 +269,13 @@ total_costo / km_recorridos
 
 ## ⏱️ Timeline Total: 6-7 horas
 
-| Fase | Tiempo | Acumulado |
-|------|--------|-----------|
-| 1. Helpers | 30 min | 30 min |
-| 2. Conductores | 2h | 2h 30 min |
-| 3. Costos | 2h | 4h 30 min |
-| 4. Sucursales | 1.5h | 6h |
-| 5. Pulido | 30 min | 6h 30 min |
+| Fase           | Tiempo | Acumulado |
+| -------------- | ------ | --------- |
+| 1. Helpers     | 30 min | 30 min    |
+| 2. Conductores | 2h     | 2h 30 min |
+| 3. Costos      | 2h     | 4h 30 min |
+| 4. Sucursales  | 1.5h   | 6h        |
+| 5. Pulido      | 30 min | 6h 30 min |
 
 ---
 

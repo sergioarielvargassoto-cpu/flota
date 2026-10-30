@@ -4,7 +4,21 @@ import { useData } from '@/lib/data';
 import { money, num } from '@/lib/util';
 import { guard } from '@/lib/util';
 import { calcularAnalisisCostos } from '@/lib/analisisHelpers';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -13,15 +27,29 @@ export default function ReportesCostos() {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const [tipoGasto, setTipoGasto] = useState<'todos' | 'combustible' | 'reparaciones' | 'mantenimiento' | 'multas'>('todos');
+  const [tipoGasto, setTipoGasto] = useState<'todos' | 'combustible' | 'reparaciones' | 'mantenimiento' | 'multas'>(
+    'todos'
+  );
 
   // Obtener meses únicos
-  const months = [...new Set(fuel_loads.map((f) => `${f.date.split('-')[0]}-${f.date.split('-')[1]}`))].sort().reverse();
-  const month = months.includes(selectedMonth) ? selectedMonth : months[0] ?? '';
+  const months = [...new Set(fuel_loads.map((f) => `${f.date.split('-')[0]}-${f.date.split('-')[1]}`))]
+    .sort()
+    .reverse();
+  const month = months.includes(selectedMonth) ? selectedMonth : (months[0] ?? '');
   const [year, m] = (month || `${selectedYear}-01`).split('-').map(Number);
 
   // Calcular análisis
-  const analisis = calcularAnalisisCostos(vehicles, fuel_loads, repairs, maintenance, infractions, km_reports, m, year, selectedBranch || undefined);
+  const analisis = calcularAnalisisCostos(
+    vehicles,
+    fuel_loads,
+    repairs,
+    maintenance,
+    infractions,
+    km_reports,
+    m,
+    year,
+    selectedBranch || undefined
+  );
   const branches = [...new Set(vehicles.map((v) => v.branch))];
   const branch = selectedBranch && branches.includes(selectedBranch) ? selectedBranch : (branches[0] ?? null);
 
@@ -46,11 +74,22 @@ export default function ReportesCostos() {
     multas: a.multas,
   }));
 
-  const evolucionData = [...new Set(fuel_loads.map((f) => `${f.date.split('-')[0]}-${f.date.split('-')[1]}`))].sort()
+  const evolucionData = [...new Set(fuel_loads.map((f) => `${f.date.split('-')[0]}-${f.date.split('-')[1]}`))]
+    .sort()
     .slice(-12)
     .map((ym) => {
       const [y, m] = ym.split('-').map(Number);
-      const costos = calcularAnalisisCostos(vehicles, fuel_loads, repairs, maintenance, infractions, km_reports, m, y, branch || undefined);
+      const costos = calcularAnalisisCostos(
+        vehicles,
+        fuel_loads,
+        repairs,
+        maintenance,
+        infractions,
+        km_reports,
+        m,
+        y,
+        branch || undefined
+      );
       const costo = costos.length > 0 ? costos.reduce((s, c) => s + c.costoPorKm, 0) / costos.length : 0;
       return { mes: ym, costoPorKm: Math.round(costo * 100) / 100 };
     });
@@ -64,7 +103,10 @@ export default function ReportesCostos() {
 
   // KPIs
   const totalCostos = dataFiltrada.reduce((s, a) => s + a.totalCostos, 0);
-  const costoPorKmPromedio = dataFiltrada.length > 0 ? Math.round((dataFiltrada.reduce((s, a) => s + a.costoPorKm, 0) / dataFiltrada.length) * 100) / 100 : 0;
+  const costoPorKmPromedio =
+    dataFiltrada.length > 0
+      ? Math.round((dataFiltrada.reduce((s, a) => s + a.costoPorKm, 0) / dataFiltrada.length) * 100) / 100
+      : 0;
   const kmTotales = dataFiltrada.reduce((s, a) => s + a.kmRecorridos, 0);
 
   return (
@@ -75,12 +117,20 @@ export default function ReportesCostos() {
         {months.length > 0 && (
           <>
             <select value={month} onChange={(e) => setSelectedMonth(e.target.value)}>
-              {months.map((m) => <option key={m} value={m}>{m.split('-').reverse().join('/')}</option>)}
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {m.split('-').reverse().join('/')}
+                </option>
+              ))}
             </select>
             {branches.length > 0 && (
               <select value={branch || ''} onChange={(e) => setSelectedBranch(e.target.value || null)}>
                 <option value="">Todas las sucursales</option>
-                {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+                {branches.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </select>
             )}
             <select value={tipoGasto} onChange={(e) => setTipoGasto(e.target.value as any)}>
@@ -94,14 +144,28 @@ export default function ReportesCostos() {
         )}
         {month && (
           <>
-            <button className="b1" onClick={() => guard(async () => {
-              const pdf = await import('@/lib/costosPdf').then((m) => m.generateCostosPdf);
-              pdf(dataFiltrada, month.split('-'), branch);
-            })}>📄 PDF</button>
-            <button className="b1" onClick={() => guard(async () => {
-              const excel = await import('@/lib/excelExports').then((m) => m.exportarCostosExcel);
-              excel(dataFiltrada, month.split('-'), branch);
-            })}>📊 Excel</button>
+            <button
+              className="b1"
+              onClick={() =>
+                guard(async () => {
+                  const pdf = await import('@/lib/costosPdf').then((m) => m.generateCostosPdf);
+                  pdf(dataFiltrada, month.split('-'), branch);
+                })
+              }
+            >
+              📄 PDF
+            </button>
+            <button
+              className="b1"
+              onClick={() =>
+                guard(async () => {
+                  const excel = await import('@/lib/excelExports').then((m) => m.exportarCostosExcel);
+                  excel(dataFiltrada, month.split('-'), branch);
+                })
+              }
+            >
+              📊 Excel
+            </button>
           </>
         )}
       </div>
@@ -155,7 +219,14 @@ export default function ReportesCostos() {
                   <XAxis dataKey="mes" />
                   <YAxis />
                   <Tooltip />
-                  <Line type="monotone" dataKey="costoPorKm" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Costo/km" />
+                  <Line
+                    type="monotone"
+                    dataKey="costoPorKm"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                    name="Costo/km"
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -166,7 +237,15 @@ export default function ReportesCostos() {
               <h3>Distribución de Gastos</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={gastosPorTipo} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={80} dataKey="value">
+                  <Pie
+                    data={gastosPorTipo}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    dataKey="value"
+                  >
                     {gastosPorTipo.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
@@ -196,15 +275,23 @@ export default function ReportesCostos() {
                 <tbody>
                   {dataFiltrada.map((a, idx) => (
                     <tr key={a.vehicle_id} style={{ backgroundColor: idx % 2 === 0 ? '#f9fafb' : '#fff' }}>
-                      <td><b>{a.plate}</b></td>
+                      <td>
+                        <b>{a.plate}</b>
+                      </td>
                       <td>{money(a.combustible)}</td>
                       <td>{money(a.reparaciones)}</td>
                       <td>{money(a.mantenimiento)}</td>
                       <td>{money(a.multas)}</td>
-                      <td><b>{money(a.totalCostos)}</b></td>
+                      <td>
+                        <b>{money(a.totalCostos)}</b>
+                      </td>
                       <td>{money(a.costoPorKm)}</td>
-                      <td style={{ color: a.variacionMesAnterior && a.variacionMesAnterior > 0 ? '#ef4444' : '#10b981' }}>
-                        {a.variacionMesAnterior ? `${a.variacionMesAnterior > 0 ? '+' : ''}${a.variacionMesAnterior}%` : '—'}
+                      <td
+                        style={{ color: a.variacionMesAnterior && a.variacionMesAnterior > 0 ? '#ef4444' : '#10b981' }}
+                      >
+                        {a.variacionMesAnterior
+                          ? `${a.variacionMesAnterior > 0 ? '+' : ''}${a.variacionMesAnterior}%`
+                          : '—'}
                       </td>
                     </tr>
                   ))}

@@ -6,7 +6,19 @@ import { guard } from '@/lib/util';
 import { pickSheet } from '@/lib/excel';
 import { KM_SPEC, useImporters } from '@/lib/importers';
 import { ImportDialog } from '@/components/ImportDialog';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
 
 export default function ReportesKm() {
   const { km_reports, vehicles, trips } = useData();
@@ -19,7 +31,7 @@ export default function ReportesKm() {
 
   // Obtener meses únicos del histórico
   const months = [...new Set(km_reports.map((r) => `${r.year}-${String(r.month).padStart(2, '0')}`))].sort().reverse();
-  const month = months.includes(selectedMonth) ? selectedMonth : months[0] ?? '';
+  const month = months.includes(selectedMonth) ? selectedMonth : (months[0] ?? '');
   const [year, m] = (month || `${selectedYear}-01`).split('-').map(Number);
 
   // Filtrar reportes del mes seleccionado
@@ -34,7 +46,8 @@ export default function ReportesKm() {
       const v = vehicles.find((x) => x.id === r.vehicle_id);
       const variation = r.km_previous ? Math.round(((r.km_total - r.km_previous) / r.km_previous) * 100) : null;
       return {
-        r, v,
+        r,
+        v,
         kmTotal: r.km_total,
         kmPrev: r.km_previous || 0,
         variation,
@@ -71,7 +84,8 @@ export default function ReportesKm() {
 
   // Evolución mensual (últimos 6 meses)
   const allReports = km_reports.filter((r) => r.vehicle_id === (filtered[0]?.r.vehicle_id || ''));
-  const evolutionData = [...new Set(allReports.map((r) => `${r.year}-${String(r.month).padStart(2, '0')}`))].sort()
+  const evolutionData = [...new Set(allReports.map((r) => `${r.year}-${String(r.month).padStart(2, '0')}`))]
+    .sort()
     .slice(-6)
     .map((ym) => {
       const [y, m] = ym.split('-').map(Number);
@@ -89,22 +103,39 @@ export default function ReportesKm() {
         {months.length > 0 && (
           <>
             <select value={month} onChange={(e) => setSelectedMonth(e.target.value)}>
-              {months.map((m) => <option key={m} value={m}>{m.split('-').reverse().join('/')}</option>)}
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {m.split('-').reverse().join('/')}
+                </option>
+              ))}
             </select>
             {branches.length > 0 && (
               <select value={branch || ''} onChange={(e) => setSelectedBranch(e.target.value || null)}>
                 <option value="">Todas las sucursales</option>
-                {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+                {branches.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </select>
             )}
           </>
         )}
-        <button className="b2" onClick={async () => setRows(await pickSheet())}>⬆ Importar Gestya</button>
+        <button className="b2" onClick={async () => setRows(await pickSheet())}>
+          ⬆ Importar Gestya
+        </button>
         {month && (
-          <button className="b1" onClick={() => guard(async () => {
-            const pdf = await import('@/lib/kmReportPdf').then((m) => m.generateKmReportPdf);
-            pdf(filtered, month.split('-') as [string, string], branch);
-          })}>📄 PDF</button>
+          <button
+            className="b1"
+            onClick={() =>
+              guard(async () => {
+                const pdf = await import('@/lib/kmReportPdf').then((m) => m.generateKmReportPdf);
+                pdf(filtered, month.split('-') as [string, string], branch);
+              })
+            }
+          >
+            📄 PDF
+          </button>
         )}
       </div>
 
@@ -123,12 +154,22 @@ export default function ReportesKm() {
               <div className="n">{filtered.length}</div>
               <div className="l">Vehículos reportados</div>
             </div>
-            <div className="card" style={{ borderLeft: excessDays.length > 0 ? '4px solid #ef4444' : '4px solid #10b981' }}>
-              <div className="n" style={{ color: excessDays.length > 0 ? '#ef4444' : '#10b981' }}>{excessDays.length}</div>
+            <div
+              className="card"
+              style={{ borderLeft: excessDays.length > 0 ? '4px solid #ef4444' : '4px solid #10b981' }}
+            >
+              <div className="n" style={{ color: excessDays.length > 0 ? '#ef4444' : '#10b981' }}>
+                {excessDays.length}
+              </div>
               <div className="l">Días que excedieron {SPEED_LIMIT} km/h</div>
             </div>
-            <div className="card" style={{ borderLeft: maxExcessSpeed > 0 ? '4px solid #f59e0b' : '4px solid #6b7280' }}>
-              <div className="n" style={{ color: maxExcessSpeed > 0 ? '#f59e0b' : '#6b7280' }}>{maxExcessSpeed || '—'}</div>
+            <div
+              className="card"
+              style={{ borderLeft: maxExcessSpeed > 0 ? '4px solid #f59e0b' : '4px solid #6b7280' }}
+            >
+              <div className="n" style={{ color: maxExcessSpeed > 0 ? '#f59e0b' : '#6b7280' }}>
+                {maxExcessSpeed || '—'}
+              </div>
               <div className="l">Máx. velocidad excedida</div>
             </div>
           </div>
@@ -182,19 +223,25 @@ export default function ReportesKm() {
                     </tr>
                   </thead>
                   <tbody>
-                    {excessDays.sort((a, b) => b.max_speed! - a.max_speed!).map((t) => {
-                      const v = vehicles.find((x) => x.id === t.vehicle_id);
-                      const excess = (t.max_speed ?? 0) - SPEED_LIMIT;
-                      return (
-                        <tr key={t.id} style={{ backgroundColor: '#fff3cd' }}>
-                          <td><b>{fd(t.date)}</b></td>
-                          <td>{v?.plate || '?'}</td>
-                          <td className="muted">{v?.brand || '—'}</td>
-                          <td><b style={{ color: '#ef4444' }}>{t.max_speed} km/h</b></td>
-                          <td style={{ color: '#ef4444' }}>+{excess} km/h</td>
-                        </tr>
-                      );
-                    })}
+                    {excessDays
+                      .sort((a, b) => b.max_speed! - a.max_speed!)
+                      .map((t) => {
+                        const v = vehicles.find((x) => x.id === t.vehicle_id);
+                        const excess = (t.max_speed ?? 0) - SPEED_LIMIT;
+                        return (
+                          <tr key={t.id} style={{ backgroundColor: '#fff3cd' }}>
+                            <td>
+                              <b>{fd(t.date)}</b>
+                            </td>
+                            <td>{v?.plate || '?'}</td>
+                            <td className="muted">{v?.brand || '—'}</td>
+                            <td>
+                              <b style={{ color: '#ef4444' }}>{t.max_speed} km/h</b>
+                            </td>
+                            <td style={{ color: '#ef4444' }}>+{excess} km/h</td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -205,8 +252,8 @@ export default function ReportesKm() {
             <div style={{ marginBottom: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>Detalle por Vehículo</h3>
               <label style={{ fontSize: '12px', marginLeft: 'auto' }}>
-                <input type="checkbox" checked={showExcluded} onChange={(e) => setShowExcluded(e.target.checked)} />
-                {' '}Mostrar excluidos
+                <input type="checkbox" checked={showExcluded} onChange={(e) => setShowExcluded(e.target.checked)} />{' '}
+                Mostrar excluidos
               </label>
             </div>
             <div className="tw">
@@ -224,16 +271,27 @@ export default function ReportesKm() {
                 <tbody>
                   {(showExcluded ? data : filtered).map((d) => (
                     <tr key={d.r.id} style={{ opacity: d.excluded ? 0.5 : 1 }}>
-                      <td><b>{d.v?.plate || '???'}</b></td>
-                      <td className="muted">{d.v?.brand && d.v?.model ? `${d.v.brand} ${d.v.model}` : d.v?.brand || '—'}</td>
-                      <td><b>{num(Math.round(d.kmTotal))}</b></td>
+                      <td>
+                        <b>{d.v?.plate || '???'}</b>
+                      </td>
+                      <td className="muted">
+                        {d.v?.brand && d.v?.model ? `${d.v.brand} ${d.v.model}` : d.v?.brand || '—'}
+                      </td>
+                      <td>
+                        <b>{num(Math.round(d.kmTotal))}</b>
+                      </td>
                       <td>{d.kmPrev > 0 ? num(Math.round(d.kmPrev)) : '—'}</td>
                       <td>
                         {d.variation !== null ? (
-                          <span style={{ color: d.variation > 0 ? '#10b981' : d.variation < 0 ? '#ef4444' : '#6b7280' }}>
-                            {d.variation > 0 ? '+' : ''}{d.variation}%
+                          <span
+                            style={{ color: d.variation > 0 ? '#10b981' : d.variation < 0 ? '#ef4444' : '#6b7280' }}
+                          >
+                            {d.variation > 0 ? '+' : ''}
+                            {d.variation}%
                           </span>
-                        ) : '—'}
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="muted">{d.v?.branch || '—'}</td>
                     </tr>

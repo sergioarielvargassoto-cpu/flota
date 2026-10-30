@@ -10,10 +10,7 @@ export function envOk(): boolean {
 export function sb(): SupabaseClient {
   if (!client) {
     if (!envOk()) throw new Error('Supabase environment variables not configured');
-    client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
+    client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
   }
   return client;
 }

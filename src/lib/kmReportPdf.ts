@@ -8,7 +8,11 @@ interface KmReportData {
   excluded: boolean;
 }
 
-export async function generateKmReportPdf(data: KmReportData[], monthYear: (string | undefined)[], branch: string | null) {
+export async function generateKmReportPdf(
+  data: KmReportData[],
+  monthYear: (string | undefined)[],
+  branch: string | null
+) {
   const year = monthYear[0] || '2026';
   const month = monthYear[1] || '01';
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -25,7 +29,10 @@ export async function generateKmReportPdf(data: KmReportData[], monthYear: (stri
 
   doc.setFontSize(11);
   doc.setTextColor(100, 100, 100);
-  const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('es-AR', {
+    month: 'long',
+    year: 'numeric',
+  });
   doc.text(`Período: ${monthName}${branch ? ` - ${branch}` : ''}`, pageWidth / 2, yPos, { align: 'center' });
   yPos += 8;
   doc.text(`Generado: ${new Date().toLocaleDateString('es-AR')}`, pageWidth / 2, yPos, { align: 'center' });

@@ -1,6 +1,18 @@
 'use client';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from 'recharts';
 
 const COLORS = ['#ff9800', '#4caf50', '#2196f3', '#f44336', '#9c27b0', '#00bcd4', '#ffeb3b', '#ff5722'];
@@ -64,9 +76,9 @@ export function InfractionsByMonthChart({ data }: { data: Record<string, number>
 export function StatusDistributionChart({ data }: { data: Record<string, number> }) {
   const chartData = Object.entries(data).map(([status, count]) => ({ status, count }));
   const colorMap: Record<string, string> = {
-    'Registrada': '#ff9800',
-    'Pagada': '#4caf50',
-    'Anulada': '#999999',
+    Registrada: '#ff9800',
+    Pagada: '#4caf50',
+    Anulada: '#999999',
   };
   return (
     <div style={{ width: '100%', height: 300 }}>

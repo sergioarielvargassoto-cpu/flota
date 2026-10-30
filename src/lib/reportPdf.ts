@@ -18,7 +18,7 @@ export async function generatePDF(elementId: string, filename: string) {
     const imgData = canvas.toDataURL('image/png');
     const imgWidth = 210; // A4 width in mm
     const pageHeight = 297; // A4 height in mm
-    let heightLeft = canvas.height * imgWidth / canvas.width;
+    let heightLeft = (canvas.height * imgWidth) / canvas.width;
     let position = 0;
 
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -28,9 +28,9 @@ export async function generatePDF(elementId: string, filename: string) {
     // Agregar imagen al PDF (múltiples páginas si es necesario)
     while (heightLeft > 0) {
       const heightPage = Math.min(heightLeft, pageHeight);
-      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, heightPage * pageWidth / imgWidth);
+      pdf.addImage(imgData, 'PNG', 0, position, pageWidth, (heightPage * pageWidth) / imgWidth);
       heightLeft -= pageHeight;
-      position = -heightPage * pageWidth / imgWidth;
+      position = (-heightPage * pageWidth) / imgWidth;
       if (heightLeft > 0) pdf.addPage();
     }
 
@@ -42,9 +42,7 @@ export async function generatePDF(elementId: string, filename: string) {
 }
 
 function sanitizeFilename(filename: string): string {
-  return filename
-    .replace(/[/\\:?*"<>|]/g, '_')
-    .substring(0, 200);
+  return filename.replace(/[/\\:?*"<>|]/g, '_').substring(0, 200);
 }
 
 export async function generateSimplePDF(data: {

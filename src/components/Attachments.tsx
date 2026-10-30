@@ -6,9 +6,16 @@ import type { Attachment } from '@/lib/types';
 
 export type ParentKind = 'document' | 'repair' | 'maintenance' | 'infraction';
 const COL: Record<ParentKind, 'document_id' | 'repair_id' | 'maintenance_id' | 'infraction_id'> = {
-  document: 'document_id', repair: 'repair_id', maintenance: 'maintenance_id', infraction: 'infraction_id',
+  document: 'document_id',
+  repair: 'repair_id',
+  maintenance: 'maintenance_id',
+  infraction: 'infraction_id',
 };
-const safe = (n: string) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+const safe = (n: string) =>
+  n
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_');
 
 // Whitelist de MIME types permitidos
 const ALLOWED_MIME_TYPES = new Set([
@@ -26,12 +33,20 @@ const ALLOWED_MIME_TYPES = new Set([
 /** Sube archivos al bucket privado "adjuntos" y los asocia a un registro. */
 export async function uploadFiles(kind: ParentKind, parentId: string, files: File[]) {
   for (const f of files) {
-    if (f.size > 10 * 1024 * 1024) { alert(`${f.name} supera 10 MB. Comprimila antes de adjuntar.`); continue; }
-    if (!ALLOWED_MIME_TYPES.has(f.type)) { alert(`${f.name} no es un tipo de archivo permitido. Usa: PDF, imágenes, o documentos.`); continue; }
+    if (f.size > 10 * 1024 * 1024) {
+      alert(`${f.name} supera 10 MB. Comprimila antes de adjuntar.`);
+      continue;
+    }
+    if (!ALLOWED_MIME_TYPES.has(f.type)) {
+      alert(`${f.name} no es un tipo de archivo permitido. Usa: PDF, imágenes, o documentos.`);
+      continue;
+    }
     const path = `${crypto.randomUUID()}-${safe(f.name)}`;
     const up = await sb().storage.from('adjuntos').upload(path, f);
     if (up.error) throw up.error;
-    const { error } = await sb().from('attachments').insert({ [COL[kind]]: parentId, path, name: f.name });
+    const { error } = await sb()
+      .from('attachments')
+      .insert({ [COL[kind]]: parentId, path, name: f.name });
     if (error) throw error;
   }
 }
@@ -39,7 +54,9 @@ export async function uploadFiles(kind: ParentKind, parentId: string, files: Fil
 /** Borra del Storage los archivos de los adjuntos indicados (los registros se borran solos en cascada). */
 export async function removeStoredFiles(list: Attachment[]) {
   if (!list.length) return;
-  const { error } = await sb().storage.from('adjuntos').remove(list.map((a) => a.path));
+  const { error } = await sb()
+    .storage.from('adjuntos')
+    .remove(list.map((a) => a.path));
   if (error) throw error;
 }
 
@@ -64,18 +81,32 @@ export function AttachmentList({ kind, id, editable }: { kind: ParentKind; id: s
     <span className="files">
       {list.map((a) => (
         <span key={a.id}>
-          <a href="#" onClick={(e) => { e.preventDefault(); openAttachment(a); }}>📎 {a.name}</a>
-          {editable && (
-            <a href="#" style={{ color: 'var(--r)' }} onClick={(e) => {
+          <a
+            href="#"
+            onClick={(e) => {
               e.preventDefault();
-              if (!confirm(`¿Quitar ${a.name}?`)) return;
-              guard(async () => {
-                await removeStoredFiles([a]);
-                const { error } = await sb().from('attachments').delete().eq('id', a.id);
-                if (error) throw error;
-                await reload('attachments');
-              });
-            }}>✕ </a>
+              openAttachment(a);
+            }}
+          >
+            📎 {a.name}
+          </a>
+          {editable && (
+            <a
+              href="#"
+              style={{ color: 'var(--r)' }}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!confirm(`¿Quitar ${a.name}?`)) return;
+                guard(async () => {
+                  await removeStoredFiles([a]);
+                  const { error } = await sb().from('attachments').delete().eq('id', a.id);
+                  if (error) throw error;
+                  await reload('attachments');
+                });
+              }}
+            >
+              ✕{' '}
+            </a>
           )}
         </span>
       ))}

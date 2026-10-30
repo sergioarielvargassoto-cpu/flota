@@ -1,12 +1,16 @@
 import * as XLSX from 'xlsx';
 import type { AnalisisConductor, AnalisisCosto, ComparativaSucursal } from './analisisHelpers';
 
-export function exportarConductoresExcel(data: AnalisisConductor[], monthYear: (string | undefined)[], branch: string | null) {
+export function exportarConductoresExcel(
+  data: AnalisisConductor[],
+  monthYear: (string | undefined)[],
+  branch: string | null
+) {
   const year = monthYear[0] || '2026';
   const month = monthYear[1] || '01';
 
   const datos = data.map((a) => ({
-    'Conductor': a.name,
+    Conductor: a.name,
     'Total Infracciones': a.totalInfracciones,
     'Infracciones Pendientes': a.infraccionesPendientes,
     'Multas Acumuladas': a.multasAcumuladas,
@@ -56,14 +60,14 @@ export function exportarCostosExcel(data: AnalisisCosto[], monthYear: (string | 
   const month = monthYear[1] || '01';
 
   const datos = data.map((a) => ({
-    'Patente': a.plate,
-    'Marca': a.brand || '-',
-    'Modelo': a.model || '-',
-    'Sucursal': a.branch,
-    'Combustible': a.combustible.toFixed(2),
-    'Reparaciones': a.reparaciones.toFixed(2),
-    'Mantenimiento': a.mantenimiento.toFixed(2),
-    'Multas': a.multas.toFixed(2),
+    Patente: a.plate,
+    Marca: a.brand || '-',
+    Modelo: a.model || '-',
+    Sucursal: a.branch,
+    Combustible: a.combustible.toFixed(2),
+    Reparaciones: a.reparaciones.toFixed(2),
+    Mantenimiento: a.mantenimiento.toFixed(2),
+    Multas: a.multas.toFixed(2),
     'Total Costos': a.totalCostos.toFixed(2),
     'Km Recorridos': a.kmRecorridos,
     'Costo/km': a.costoPorKm.toFixed(2),
@@ -93,7 +97,8 @@ export function exportarCostosExcel(data: AnalisisCosto[], monthYear: (string | 
 
   // Agregar resumen
   const totalCostos = data.reduce((s, d) => s + d.totalCostos, 0);
-  const costoPorKmPromedio = data.length > 0 ? (data.reduce((s, d) => s + d.costoPorKm, 0) / data.length).toFixed(2) : 0;
+  const costoPorKmPromedio =
+    data.length > 0 ? (data.reduce((s, d) => s + d.costoPorKm, 0) / data.length).toFixed(2) : 0;
   const kmTotales = data.reduce((s, d) => s + d.kmRecorridos, 0);
 
   const resumen = [
@@ -122,13 +127,13 @@ export function exportarSucursalesExcel(data: ComparativaSucursal[], monthYear: 
   const month = monthYear[1] || '01';
 
   const datos = data.map((s) => ({
-    'Sucursal': s.branch,
+    Sucursal: s.branch,
     'Km Totales': s.totalKm,
     'Combustible (L)': s.totalCombustible.toFixed(2),
     'Costo Promedio/km': s.costPromedioKm.toFixed(2),
-    'Infracciones': s.totalInfracciones,
-    'Conductores': s.cantidadConductores,
-    'Vehículos': s.cantidadVehiculos,
+    Infracciones: s.totalInfracciones,
+    Conductores: s.cantidadConductores,
+    Vehículos: s.cantidadVehiculos,
     'Rating Seguridad Prom.': s.ratingSeguridadPromedio,
     'Eficiencia Prom. (km/L)': s.eficienciaPromedio.toFixed(2),
   }));
@@ -152,9 +157,15 @@ export function exportarSucursalesExcel(data: ComparativaSucursal[], monthYear: 
   // Agregar rankings
   const rankings = [
     ['RANKINGS'],
-    ['Sucursal más eficiente (costo/km)', data.reduce((a, b) => a.costPromedioKm < b.costPromedioKm ? a : b).branch],
-    ['Sucursal más segura (rating)', data.reduce((a, b) => a.ratingSeguridadPromedio > b.ratingSeguridadPromedio ? a : b).branch],
-    ['Mejor eficiencia (km/litro)', data.reduce((a, b) => a.eficienciaPromedio > b.eficienciaPromedio ? a : b).branch],
+    ['Sucursal más eficiente (costo/km)', data.reduce((a, b) => (a.costPromedioKm < b.costPromedioKm ? a : b)).branch],
+    [
+      'Sucursal más segura (rating)',
+      data.reduce((a, b) => (a.ratingSeguridadPromedio > b.ratingSeguridadPromedio ? a : b)).branch,
+    ],
+    [
+      'Mejor eficiencia (km/litro)',
+      data.reduce((a, b) => (a.eficienciaPromedio > b.eficienciaPromedio ? a : b)).branch,
+    ],
     [''],
     ['TOTALES'],
     ['Total Km', data.reduce((s, c) => s + c.totalKm, 0)],

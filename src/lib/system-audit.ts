@@ -20,10 +20,7 @@ export async function systemAudit() {
     console.log('Analizando integridad referencial...');
 
     // Reparaciones huérfanas (sin vehículo)
-    const { data: orphanedRepairs } = await sb()
-      .from('repairs')
-      .select('id, vehicle_id')
-      .is('vehicle_id', null);
+    const { data: orphanedRepairs } = await sb().from('repairs').select('id, vehicle_id').is('vehicle_id', null);
     if (orphanedRepairs?.length) {
       issues.push({
         table: 'repairs',
@@ -36,10 +33,7 @@ export async function systemAudit() {
     }
 
     // Mantenimientos huérfanos
-    const { data: orphanedMaint } = await sb()
-      .from('maintenance')
-      .select('id, vehicle_id')
-      .is('vehicle_id', null);
+    const { data: orphanedMaint } = await sb().from('maintenance').select('id, vehicle_id').is('vehicle_id', null);
     if (orphanedMaint?.length) {
       issues.push({
         table: 'maintenance',
@@ -55,9 +49,7 @@ export async function systemAudit() {
     console.log('Buscando duplicados...');
 
     // Vehículos con patente duplicada
-    const { data: vehicles } = await sb()
-      .from('vehicles')
-      .select('id, plate');
+    const { data: vehicles } = await sb().from('vehicles').select('id, plate');
 
     if (vehicles) {
       const plateCount = new Map<string, number>();
@@ -81,9 +73,7 @@ export async function systemAudit() {
     }
 
     // Corridas duplicadas (mismo vehículo, mismo día)
-    const { data: trips } = await sb()
-      .from('trips')
-      .select('vehicle_id, date');
+    const { data: trips } = await sb().from('trips').select('vehicle_id, date');
 
     if (trips) {
       const tripKey = new Map<string, number>();
@@ -110,17 +100,11 @@ export async function systemAudit() {
     // ========== 3. FLUJO DE DATOS: KM ==========
     console.log('Analizando flujo de km...');
 
-    const { data: allVehicles } = await sb()
-      .from('vehicles')
-      .select('id, km, km_date');
+    const { data: allVehicles } = await sb().from('vehicles').select('id, km, km_date');
 
-    const { data: kmHistory } = await sb()
-      .from('km_history')
-      .select('vehicle_id, km, recorded_at');
+    const { data: kmHistory } = await sb().from('km_history').select('vehicle_id, km, recorded_at');
 
-    const { data: kmReports } = await sb()
-      .from('km_reports')
-      .select('vehicle_id, km_total, month, year');
+    const { data: kmReports } = await sb().from('km_reports').select('vehicle_id, km_total, month, year');
 
     if (allVehicles && kmHistory && kmReports) {
       for (const v of allVehicles as any[]) {
@@ -214,13 +198,9 @@ export async function systemAudit() {
     console.log('Buscando inconsistencias...');
 
     // Multas sin infracción
-    const { data: fines } = await sb()
-      .from('fines')
-      .select('id, infraction_id');
+    const { data: fines } = await sb().from('fines').select('id, infraction_id');
 
-    const { data: infractions } = await sb()
-      .from('infractions')
-      .select('id');
+    const { data: infractions } = await sb().from('infractions').select('id');
 
     if (fines && infractions) {
       const infractionIds = new Set((infractions as any[]).map((i) => i.id));
@@ -242,10 +222,7 @@ export async function systemAudit() {
     console.log('Buscando campos críticos vacíos...');
 
     // Vehículos sin tipo
-    const { data: vehiclesNoType } = await sb()
-      .from('vehicles')
-      .select('id, plate')
-      .is('type', null);
+    const { data: vehiclesNoType } = await sb().from('vehicles').select('id, plate').is('type', null);
 
     if (vehiclesNoType?.length) {
       issues.push({
@@ -258,10 +235,7 @@ export async function systemAudit() {
     }
 
     // Reparaciones sin descripción
-    const { data: repairsNoDesc } = await sb()
-      .from('repairs')
-      .select('id')
-      .is('description', null);
+    const { data: repairsNoDesc } = await sb().from('repairs').select('id').is('description', null);
 
     if (repairsNoDesc?.length) {
       issues.push({
@@ -272,7 +246,6 @@ export async function systemAudit() {
         count: repairsNoDesc.length,
       });
     }
-
   } catch (error) {
     issues.push({
       table: 'system',

@@ -24,8 +24,12 @@ export async function auditKmConsistency() {
 
   // Por cada vehículo, verificar consistency
   for (const v of vehicles as Vehicle[]) {
-    const history = (kmHistory as KmHistory[]).filter((h) => h.vehicle_id === v.id).sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
-    const reports = (kmReports as any[]).filter((r) => r.vehicle_id === v.id).sort((a, b) => b.year - a.year || b.month - a.month);
+    const history = (kmHistory as KmHistory[])
+      .filter((h) => h.vehicle_id === v.id)
+      .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
+    const reports = (kmReports as any[])
+      .filter((r) => r.vehicle_id === v.id)
+      .sort((a, b) => b.year - a.year || b.month - a.month);
 
     // Check 1: km actual debería coincidir con el último km_history
     if (history.length > 0) {
@@ -72,7 +76,11 @@ export async function auditKmConsistency() {
             severity: 'info',
             message: `Cambios manuales después de última importación: ${lastHistoryAfterReport.km} (${new Date(lastHistoryAfterReport.recorded_at).toLocaleDateString('es-AR')})`,
             vehicleId: v.id,
-            data: { manualKm: lastHistoryAfterReport.km, importKm: lastReport.km_total, importDate: `${lastReport.year}-${lastReport.month}` },
+            data: {
+              manualKm: lastHistoryAfterReport.km,
+              importKm: lastReport.km_total,
+              importDate: `${lastReport.year}-${lastReport.month}`,
+            },
           });
         }
       }

@@ -1,5 +1,8 @@
 /** Patente / texto normalizado: mayúsculas, sin espacios ni símbolos. */
-export const nrm = (s: unknown): string => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+export const nrm = (s: unknown): string =>
+  String(s ?? '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
 
 export const todayStr = (): string => {
   const d = new Date();
@@ -68,7 +71,7 @@ export async function guard<T>(fn: () => Promise<T>): Promise<T | undefined> {
   try {
     return await fn();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? String(e);
+    const msg = e instanceof Error ? e.message : ((e as { message?: string })?.message ?? String(e));
     alert('No se pudo completar la acción:\n' + msg);
     return undefined;
   }
@@ -80,10 +83,26 @@ export const DOC_VEHICLE_DEFAULT = [
   'Habilitación Municipal de Transporte de Carga',
   'Seguro Automotor',
 ];
-export const DOC_VEHICLE_ALL = [...DOC_VEHICLE_DEFAULT, 'Cédula (verde/azul)', 'Impuesto automotor (patente)', 'Habilitación CNRT', 'Matafuego', 'Registro de cámara frigorífica', 'Otro'];
+export const DOC_VEHICLE_ALL = [
+  ...DOC_VEHICLE_DEFAULT,
+  'Cédula (verde/azul)',
+  'Impuesto automotor (patente)',
+  'Habilitación CNRT',
+  'Matafuego',
+  'Registro de cámara frigorífica',
+  'Otro',
+];
 export const DOC_DRIVER_DEFAULT = ['Licencia de conducir', 'LINTI', 'Libreta Sanitaria'];
 export const DOC_DRIVER_ALL = [...DOC_DRIVER_DEFAULT, 'Psicofísico', 'Curso de manipulación de alimentos', 'Otro'];
 export const MAINT_TYPES = [
-  'Service (cada 10.000 km)', 'Cambio de aceite y filtros', 'Neumáticos', 'Frenos', 'Correa de distribución',
-  'Batería', 'Alineación y balanceo', 'Tren delantero', 'Refrigeración / cámara', 'Otro',
+  'Service (cada 10.000 km)',
+  'Cambio de aceite y filtros',
+  'Neumáticos',
+  'Frenos',
+  'Correa de distribución',
+  'Batería',
+  'Alineación y balanceo',
+  'Tren delantero',
+  'Refrigeración / cámara',
+  'Otro',
 ];

@@ -15,10 +15,22 @@ export default function Reparaciones() {
   return (
     <>
       <div className="bar">
-        <h2 style={{ margin: 0 }}>Reparaciones</h2><span className="sp" />
-        <select value={fv} onChange={(e) => setFv(e.target.value)}><option value="">Todos los vehículos</option>{vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate}</option>)}</select>
-        <span className="muted">Total: <b>{money(total)}</b></span>
-        <button className="b1" onClick={() => open((c) => <RepairForm onClose={c} />)}>+ Reparación</button>
+        <h2 style={{ margin: 0 }}>Reparaciones</h2>
+        <span className="sp" />
+        <select value={fv} onChange={(e) => setFv(e.target.value)}>
+          <option value="">Todos los vehículos</option>
+          {vehicles.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.plate}
+            </option>
+          ))}
+        </select>
+        <span className="muted">
+          Total: <b>{money(total)}</b>
+        </span>
+        <button className="b1" onClick={() => open((c) => <RepairForm onClose={c} />)}>
+          + Reparación
+        </button>
       </div>
       <RepairsTable list={l} showVehicle />
       {el}

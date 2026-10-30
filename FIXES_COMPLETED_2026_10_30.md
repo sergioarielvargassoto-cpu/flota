@@ -7,29 +7,34 @@
 ## 🔴 CRÍTICOS - 5/5 ARREGLADOS ✅
 
 ### ✅ CRÍTICO 1: km_history - Migración Incompleta
+
 - **Archivo**: `supabase/migrations/0005_fix_km_history_columns.sql` (NUEVO)
 - **Qué se hizo**: Agregadas columnas `km_previous` y `changed_by` a km_history
 - **Índices**: Agregados para changed_by y vehicle_id + recorded_at
 - **Status**: COMPLETADO - listo para ejecutar en Supabase
 
 ### ✅ CRÍTICO 2: recordKmChange - changed_by Hardcodeado
+
 - **Archivo**: `src/lib/history.ts`
 - **Cambio**: Ahora obtiene userId de `sb().auth.getUser()` en lugar de hardcodear 'usuario'
 - **Fallback**: Si no hay usuario, usa 'sistema'
 - **Status**: COMPLETADO
 
 ### ✅ CRÍTICO 3: recordRepairChange/Maintenance - created_at Faltante
+
 - **Archivo**: `src/lib/history.ts`
 - **Cambio**: Agregado `created_at` a ambas funciones
 - **Status**: COMPLETADO
 
 ### ✅ CRÍTICO 4: Race Condition reload()
+
 - **Archivo**: `src/lib/data.tsx`
 - **Cambio**: Agregado estado `isReloading` que previene reloads concurrentes
 - **Lógica**: Si isReloading=true, nueva llamada retorna inmediatamente
 - **Status**: COMPLETADO
 
 ### ✅ CRÍTICO 5: FormModal - Validación Genérica (sin alert)
+
 - **Archivo**: `src/components/FormModal.tsx`
 - **Cambios**:
   - Estado `fieldError` y `errorField` para tracking
@@ -40,6 +45,7 @@
 - **Status**: COMPLETADO
 
 ### ℹ️ CRÍTICO 6: xlsx Vulnerabilidades
+
 - **Archivo**: `XLSX_VULNERABILITY_MITIGATION.md` (NUEVO)
 - **Opciones documentadas**:
   1. Reemplazar con `papaparse` (solo CSV)
@@ -53,6 +59,7 @@
 ## 🟠 ALTOS - 12/12 ARREGLADOS ✅
 
 ### ✅ ALTO 1: RLS Policies Demasiado Permisivas
+
 - **Archivo**: `supabase/migrations/0006_fix_security_rls_fk.sql` (NUEVO)
 - **Qué se hizo**:
   - ENABLE ROW LEVEL SECURITY en todas las tablas (vehicles, drivers, documents, workshops, repairs, maintenance, fuel_loads, trips, attachments, infractions, fines)
@@ -62,6 +69,7 @@
 - **NOTA**: Políticas son placeholder - pueden filtrarse por rama u organización después
 
 ### ✅ ALTO 2: FK Delete CASCADE → RESTRICT
+
 - **Archivo**: `supabase/migrations/0006_fix_security_rls_fk.sql` (mismo archivo)
 - **Cambios**:
   - fuel_loads → vehicles: CASCADE → RESTRICT
@@ -72,6 +80,7 @@
 - **Impacto**: Previene pérdida accidental de datos
 
 ### ✅ ALTO 3: Attachments - MIME Type Validation
+
 - **Archivo**: `src/components/Attachments.tsx`
 - **Cambio**: Whitelist de MIME types permitidos:
   - PDF, imágenes (JPEG, PNG, WebP, GIF)
@@ -80,25 +89,30 @@
 - **Status**: COMPLETADO
 
 ### ✅ ALTO 4: combustible/page.tsx - Keys Basadas en Index
+
 - **Archivo**: `src/app/combustible/page.tsx`
 - **Cambio**: Línea 68 - `key={i}` → `key={x.v?.id ?? 'unknown'}`
 - **Efecto**: Previene clicks en vehículo equivocado si data cambia
 - **Status**: COMPLETADO
 
 ### ✅ ALTO 5: ImportDialog - Keys Basadas en Index
+
 - **Archivo**: `src/components/ImportDialog.tsx`
 - **Cambio**: Línea 30 - `key={i}` → `key={`${i}-${h}`}`
 - **Status**: COMPLETADO
 
 ### ✅ ALTO 6: Normalizar Select Options Format
+
 - **Archivo**: `src/components/forms.tsx`
 - **Status**: YA ESTABA - provincia usa format tuplas `[['', 'label']]`
 
 ### ✅ ALTO 7: FormModal Error Handling
+
 - **Archivo**: `src/components/FormModal.tsx`
 - **Status**: COMPLETADO en CRÍTICO 4 - error handling robusto
 
 ### ✅ ALTO 8: ESLint + Prettier Config
+
 - **Archivos**: `.eslintrc.json` y `.prettierrc` (NUEVOS)
 - **ESLint**:
   - next/core-web-vitals extendido
@@ -118,6 +132,7 @@
 ## 🟡 MEDIOS - 11 IDENTIFICADOS
 
 ### ✅ MEDIO 1: Índices Faltantes
+
 - **Archivo**: `supabase/migrations/0007_indexes_constraints.sql` (NUEVO)
 - **Índices Agregados**:
   - drivers(dni, name)
@@ -130,6 +145,7 @@
 - **Status**: COMPLETADO - listo para ejecutar
 
 ### ✅ MEDIO 2: UNIQUE Constraints
+
 - **Archivo**: `supabase/migrations/0007_indexes_constraints.sql`
 - **Constraints Agregados**:
   - documents(vehicle_id, doc_type) - previene vencimientos duplicados
@@ -137,6 +153,7 @@
 - **Status**: COMPLETADO - listo para ejecutar
 
 ### ✅ MEDIO 3: doc_type Enum
+
 - **Archivo**: `src/lib/types.ts`
 - **Cambios**:
   - Agregados tipos: `DocType`, `VehicleType`, `VehicleStatus`
@@ -145,11 +162,13 @@
 - **Status**: COMPLETADO
 
 ### ✅ MEDIO 4: .gitignore Fixes
+
 - **Archivo**: `.gitignore`
 - **Agregado**: AGENTS.md, .claude/settings.local.json
 - **Status**: COMPLETADO
 
 ### ❌ MEDIO 5-11: Documentación, Pre-deploy checks, etc.
+
 - **Pendiente**: Documentación detallada (requiere tiempo, no crítico)
 - **Pendiente**: Pre-deploy checks script
 - **Status**: NO AUTOMATIZABLE
@@ -159,6 +178,7 @@
 ## 📊 RESUMEN DE CAMBIOS
 
 ### Archivos Modificados: 9
+
 - src/lib/history.ts - recordKmChange (userId), created_at
 - src/lib/data.tsx - race condition fix
 - src/components/FormModal.tsx - validación inline
@@ -169,6 +189,7 @@
 - .gitignore - AGENTS.md, settings.local.json
 
 ### Archivos Creados: 8
+
 - supabase/migrations/0005_fix_km_history_columns.sql
 - supabase/migrations/0006_fix_security_rls_fk.sql
 - supabase/migrations/0007_indexes_constraints.sql
@@ -185,6 +206,7 @@
 ## 🚨 BLOQUEADORES - REQUIEREN USUARIO
 
 ### 1️⃣ XLSX Vulnerabilidades - DECISIÓN REQUERIDA
+
 - **Opciones**:
   - [ ] Opción 1: Reemplazar con papaparse (solo CSV) - 2-3 horas
   - [ ] Opción 2: Usar exceljs (Excel nativo) - 2-3 horas
@@ -193,7 +215,9 @@
 - **Recomendación**: Opción 3 hoy, Opción 2 próxima semana
 
 ### 2️⃣ Migraciones Supabase - EJECUTAR EN SUPABASE
+
 3 migraciones creadas necesitan ser ejecutadas en tu proyecto Supabase:
+
 - `0005_fix_km_history_columns.sql` - Agrega columnas
 - `0006_fix_security_rls_fk.sql` - RLS + FK fixes
 - `0007_indexes_constraints.sql` - Índices y constraints
@@ -201,6 +225,7 @@
 **Cómo**: Go to Supabase SQL Editor → copy-paste cada migración → ejecutar
 
 ### 3️⃣ ESLint/Prettier - INSTALACIÓN
+
 ```bash
 npm install -D eslint @typescript-eslint/eslint-plugin @typescript-eslint/parser prettier
 npm run lint --fix  # (si existe el script)
@@ -208,6 +233,7 @@ npx prettier --write .  # Format all files
 ```
 
 ### 4️⃣ RLS Policies - MEJORAR
+
 Las políticas actuales son `USING (true) WITH CHECK (true)` = cualquier usuario ve todo.
 **Próximo paso**: Filtrar por `branch` u `organization_id` según tu estructura.
 
@@ -228,18 +254,21 @@ Las políticas actuales son `USING (true) WITH CHECK (true)` = cualquier usuario
 ## 📋 PRÓXIMOS PASOS
 
 ### Inmediatos (usuario):
+
 1. [ ] Ejecutar 3 migraciones en Supabase SQL Editor
 2. [ ] Decidir sobre xlsx (opción 3 temporal recomendada)
 3. [ ] `npm install -D eslint prettier @typescript-eslint/*`
 4. [ ] `npx prettier --write .` (format all files)
 
 ### Después del deploy:
+
 1. [ ] Test que las migraciones funcionan
 2. [ ] Verificar que RLS policies no rompen acceso
 3. [ ] Test importación attachments (MIME type validation)
 4. [ ] Test FormModal errors (inline validation)
 
 ### Mediano plazo:
+
 1. [ ] Mejorar RLS policies (filtrar por rama/usuario)
 2. [ ] Pre-deploy checks script
 3. [ ] Documentación README completa

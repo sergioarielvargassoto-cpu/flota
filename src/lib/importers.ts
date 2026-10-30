@@ -36,9 +36,17 @@ export const KM_SPEC: ColSpec[] = [
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const title = (s: string) => s.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-const patOf = (s: unknown) => { const m = String(s ?? '').match(/\(([^)]+)\)/); return nrm(m ? m[1] : s); };
+const patOf = (s: unknown) => {
+  const m = String(s ?? '').match(/\(([^)]+)\)/);
+  return nrm(m ? m[1] : s);
+};
 const brandOf = (s: unknown) => {
-  const t = String(s ?? '').replace(/\(.*\)/, '').trim().toUpperCase().replace(/\./g, '').trim();
+  const t = String(s ?? '')
+    .replace(/\(.*\)/, '')
+    .trim()
+    .toUpperCase()
+    .replace(/\./g, '')
+    .trim();
   if (!t) return '';
   return /^M BENZ/.test(t) ? 'Mercedes-Benz' : t.charAt(0) + t.slice(1).toLowerCase();
 };
@@ -50,11 +58,21 @@ export function useImporters() {
   async function ensureVehicles(found: Map<string, string>): Promise<Map<string, Vehicle>> {
     const byPlate = new Map(vehicles.map((v) => [nrm(v.plate), v]));
     const missing = [...found.keys()].filter((p) => !byPlate.has(p));
-    if (missing.length && confirm(`Estos ${missing.length} vehículos no están cargados en la app:\n${missing.join(', ')}\n\n¿Querés crearlos ahora? (Si cancelás, se omiten sus filas)`)) {
-      const { data, error } = await sb().from('vehicles').insert(missing.map((p) => ({ plate: p, brand: found.get(p) || null }))).select();
+    if (
+      missing.length &&
+      confirm(
+        `Estos ${missing.length} vehículos no están cargados en la app:\n${missing.join(', ')}\n\n¿Querés crearlos ahora? (Si cancelás, se omiten sus filas)`
+      )
+    ) {
+      const { data, error } = await sb()
+        .from('vehicles')
+        .insert(missing.map((p) => ({ plate: p, brand: found.get(p) || null })))
+        .select();
       if (error) throw error;
       const nv = (data ?? []) as Vehicle[];
-      const d = await sb().from('documents').insert(nv.flatMap((v) => DOC_VEHICLE_DEFAULT.map((t) => ({ vehicle_id: v.id, doc_type: t }))));
+      const d = await sb()
+        .from('documents')
+        .insert(nv.flatMap((v) => DOC_VEHICLE_DEFAULT.map((t) => ({ vehicle_id: v.id, doc_type: t }))));
       if (d.error) throw d.error;
       nv.forEach((v) => byPlate.set(nrm(v.plate), v));
     }
@@ -63,28 +81,53 @@ export function useImporters() {
 
   async function importTrips(data: unknown[][], m: Record<string, number>) {
     if (m.v < 0 || m.d < 0 || (m.c < 0 && m.r < 0)) return alert('Hacen falta vehículo, día y distancia.');
-    const parsed = data.map((r) => ({
-      pt: patOf(r[m.v]), brand: brandOf(r[m.v]), fecha: pDate(r[m.d]),
-      c: m.c >= 0 ? pNum(r[m.c]) : NaN, r: m.r >= 0 ? pNum(r[m.r]) : NaN, x: m.x >= 0 ? pNum(r[m.x]) : NaN,
-      mov: m.m >= 0 ? String(r[m.m] ?? '') : '',
-    })).filter((x) => x.pt && x.fecha && (!isNaN(x.c) || !isNaN(x.r)));
+    const parsed = data
+      .map((r) => ({
+        pt: patOf(r[m.v]),
+        brand: brandOf(r[m.v]),
+        fecha: pDate(r[m.d]),
+        c: m.c >= 0 ? pNum(r[m.c]) : NaN,
+        r: m.r >= 0 ? pNum(r[m.r]) : NaN,
+        x: m.x >= 0 ? pNum(r[m.x]) : NaN,
+        mov: m.m >= 0 ? String(r[m.m] ?? '') : '',
+      }))
+      .filter((x) => x.pt && x.fecha && (!isNaN(x.c) || !isNaN(x.r)));
     if (!parsed.length) return alert('No encontré filas con datos válidos.');
 
     const byPlate = await ensureVehicles(new Map(parsed.map((x) => [x.pt, x.brand])));
     const existing = new Set(trips.map((t) => t.vehicle_id + '|' + t.date));
-    const rows = new Map<string, { vehicle_id: string; date: string; km_calc: number; km_reported: number | null; max_speed: number | null; moving_time: string | null }>();
+    const rows = new Map<
+      string,
+      {
+        vehicle_id: string;
+        date: string;
+        km_calc: number;
+        km_reported: number | null;
+        max_speed: number | null;
+        moving_time: string | null;
+      }
+    >();
     let skipped = 0;
     for (const x of parsed) {
       const v = byPlate.get(x.pt);
-      if (!v) { skipped++; continue; }
+      if (!v) {
+        skipped++;
+        continue;
+      }
       rows.set(v.id + '|' + x.fecha, {
-        vehicle_id: v.id, date: x.fecha, km_calc: r2(!isNaN(x.c) ? x.c : x.r), km_reported: isNaN(x.r) ? null : r2(x.r),
-        max_speed: isNaN(x.x) ? null : Math.round(x.x), moving_time: x.mov || null,
+        vehicle_id: v.id,
+        date: x.fecha,
+        km_calc: r2(!isNaN(x.c) ? x.c : x.r),
+        km_reported: isNaN(x.r) ? null : r2(x.r),
+        max_speed: isNaN(x.x) ? null : Math.round(x.x),
+        moving_time: x.mov || null,
       });
     }
     const list = [...rows.values()];
     for (let i = 0; i < list.length; i += 500) {
-      const { error } = await sb().from('trips').upsert(list.slice(i, i + 500), { onConflict: 'vehicle_id,date' });
+      const { error } = await sb()
+        .from('trips')
+        .upsert(list.slice(i, i + 500), { onConflict: 'vehicle_id,date' });
       if (error) throw error;
     }
     // km actual = última lectura de odómetro + km del GPS posteriores a esa lectura (solo días nuevos)
@@ -96,32 +139,48 @@ export function useImporters() {
       if (!v || v.km === null || !v.km_date) continue;
       const nd = arr.filter((t) => t.date > v.km_date!);
       if (!nd.length) continue;
-      const { error } = await sb().from('vehicles').update({
-        km: Math.round(v.km + nd.reduce((s, t) => s + t.km_calc, 0)),
-        km_date: nd.reduce((mx, t) => (t.date > mx ? t.date : mx), v.km_date),
-      }).eq('id', vid);
+      const { error } = await sb()
+        .from('vehicles')
+        .update({
+          km: Math.round(v.km + nd.reduce((s, t) => s + t.km_calc, 0)),
+          km_date: nd.reduce((mx, t) => (t.date > mx ? t.date : mx), v.km_date),
+        })
+        .eq('id', vid);
       if (error) throw error;
     }
     await reload('vehicles', 'documents', 'trips');
-    alert(`${fresh.length} días nuevos, ${list.length - fresh.length} actualizados${skipped ? `, ${skipped} filas omitidas (vehículo no creado)` : ''}.\nEl km actual de cada vehículo se actualizó sumando la distancia posterior a su última lectura de odómetro.`);
+    alert(
+      `${fresh.length} días nuevos, ${list.length - fresh.length} actualizados${skipped ? `, ${skipped} filas omitidas (vehículo no creado)` : ''}.\nEl km actual de cada vehículo se actualizó sumando la distancia posterior a su última lectura de odómetro.`
+    );
   }
 
   async function importFuel(data: unknown[][], m: Record<string, number>) {
     if (m.f < 0 || m.l < 0 || (m.p < 0 && m.t < 0)) return alert('Hace falta fecha, litros y patente o tarjeta.');
     const g = (r: unknown[], k: string) => (m[k] >= 0 ? String(r[m[k]] ?? '').trim() : '');
     const byCard = (t: string) => vehicles.find((x) => nrm(x.fuel_card) && nrm(x.fuel_card) === nrm(t).slice(-6));
-    const L = data.map((r) => {
-      const t = nrm(g(r, 't'));
-      let pt = nrm(g(r, 'p'));
-      if (!pt && t) { const v = byCard(t); if (v) pt = nrm(v.plate); }
-      const loc = g(r, 'loc');
-      return {
-        pt, tarj: t, fecha: pDate(r[m.f]), lit: pNum(r[m.l]),
-        im: m.i >= 0 ? pNum(r[m.i]) : NaN, odo: m.k >= 0 ? pNum(r[m.k]) : NaN,
-        est: [g(r, 'e').replace(/^\d+\s*-\s*/, ''), loc ? `(${title(loc)})` : ''].filter(Boolean).join(' '),
-        prod: title(g(r, 'pr')), cond: g(r, 'c'), rem: g(r, 'r'),
-      };
-    }).filter((x) => x.fecha && !isNaN(x.lit) && x.pt);
+    const L = data
+      .map((r) => {
+        const t = nrm(g(r, 't'));
+        let pt = nrm(g(r, 'p'));
+        if (!pt && t) {
+          const v = byCard(t);
+          if (v) pt = nrm(v.plate);
+        }
+        const loc = g(r, 'loc');
+        return {
+          pt,
+          tarj: t,
+          fecha: pDate(r[m.f]),
+          lit: pNum(r[m.l]),
+          im: m.i >= 0 ? pNum(r[m.i]) : NaN,
+          odo: m.k >= 0 ? pNum(r[m.k]) : NaN,
+          est: [g(r, 'e').replace(/^\d+\s*-\s*/, ''), loc ? `(${title(loc)})` : ''].filter(Boolean).join(' '),
+          prod: title(g(r, 'pr')),
+          cond: g(r, 'c'),
+          rem: g(r, 'r'),
+        };
+      })
+      .filter((x) => x.fecha && !isNaN(x.lit) && x.pt);
     if (!L.length) return alert('No encontré filas con datos válidos (fecha, litros y patente).');
 
     const byPlate = await ensureVehicles(new Map(L.map((x) => [x.pt, ''])));
@@ -132,49 +191,89 @@ export function useImporters() {
     byPlate.forEach((v) => state.set(v.id, { km: v.km, date: v.km_date, card: v.fuel_card, changed: false }));
 
     const rows: object[] = [];
-    let dup = 0, bad = 0, skipped = 0;
+    let dup = 0,
+      bad = 0,
+      skipped = 0;
     for (const x of L) {
       const v = byPlate.get(x.pt);
-      if (!v) { skipped++; continue; }
-      const liters = r2(x.lit), amount = isNaN(x.im) ? null : r2(x.im);
-      if (x.rem ? haveReceipt.has(x.rem) : haveKey.has([v.id, x.fecha, liters, amount].join('|'))) { dup++; continue; }
-      if (x.rem) haveReceipt.add(x.rem); else haveKey.add([v.id, x.fecha, liters, amount].join('|'));
+      if (!v) {
+        skipped++;
+        continue;
+      }
+      const liters = r2(x.lit),
+        amount = isNaN(x.im) ? null : r2(x.im);
+      if (x.rem ? haveReceipt.has(x.rem) : haveKey.has([v.id, x.fecha, liters, amount].join('|'))) {
+        dup++;
+        continue;
+      }
+      if (x.rem) haveReceipt.add(x.rem);
+      else haveKey.add([v.id, x.fecha, liters, amount].join('|'));
       const st = state.get(v.id)!;
       const odo = isNaN(x.odo) ? null : Math.round(x.odo);
       const good = odo !== null && isFuel(x.prod) && okOdo(st.km, st.date, x.fecha, odo);
       if (odo !== null && !good && isFuel(x.prod)) bad++;
-      if (good && (!st.date || x.fecha > st.date)) { st.km = odo; st.date = x.fecha; st.changed = true; }
-      if (!st.card && x.tarj) { st.card = x.tarj.slice(-6); st.changed = true; }
+      if (good && (!st.date || x.fecha > st.date)) {
+        st.km = odo;
+        st.date = x.fecha;
+        st.changed = true;
+      }
+      if (!st.card && x.tarj) {
+        st.card = x.tarj.slice(-6);
+        st.changed = true;
+      }
       rows.push({
-        vehicle_id: v.id, date: x.fecha, liters, amount, km: good ? odo : null, km_raw: odo,
-        station: x.est || null, product: x.prod || null, driver_name: x.cond || null, receipt: x.rem || null,
+        vehicle_id: v.id,
+        date: x.fecha,
+        liters,
+        amount,
+        km: good ? odo : null,
+        km_raw: odo,
+        station: x.est || null,
+        product: x.prod || null,
+        driver_name: x.cond || null,
+        receipt: x.rem || null,
       });
     }
     for (let i = 0; i < rows.length; i += 200) {
-      const { error } = await sb().from('fuel_loads').insert(rows.slice(i, i + 200));
+      const { error } = await sb()
+        .from('fuel_loads')
+        .insert(rows.slice(i, i + 200));
       if (error) throw error;
     }
     for (const [vid, st] of state) {
       if (!st.changed) continue;
-      const { error } = await sb().from('vehicles').update({ km: st.km, km_date: st.date, fuel_card: st.card }).eq('id', vid);
+      const { error } = await sb()
+        .from('vehicles')
+        .update({ km: st.km, km_date: st.date, fuel_card: st.card })
+        .eq('id', vid);
       if (error) throw error;
     }
     await reload('vehicles', 'documents', 'fuel_loads');
-    alert(`${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por inconsistentes (se marcan con ⚠).` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}`);
+    alert(
+      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por inconsistentes (se marcan con ⚠).` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}`
+    );
   }
 
-  async function importKmReport(data: unknown[][], m: Record<string, number>, month: number, year: number, fileName: string) {
+  async function importKmReport(
+    data: unknown[][],
+    m: Record<string, number>,
+    month: number,
+    year: number,
+    fileName: string
+  ) {
     // Detectar si es formato Gestya (patente en paréntesis) o simple
     const isGestya = data.some((r) => String(r[m.v] ?? '').includes('('));
 
-    const parsed = data.map((r) => {
-      const vehicleStr = String(r[m.v] ?? '').trim();
-      const pt = isGestya ? patOf(vehicleStr) : nrm(vehicleStr);
-      const brand = isGestya ? brandOf(vehicleStr) : '';
-      const fecha = pDate(r[m.d]);
-      const km = pNum(r[m.c]);
-      return { pt, brand, fecha, km: isNaN(km) ? 0 : Math.round(km * 100) / 100 };
-    }).filter((x) => x.pt && x.km > 0);
+    const parsed = data
+      .map((r) => {
+        const vehicleStr = String(r[m.v] ?? '').trim();
+        const pt = isGestya ? patOf(vehicleStr) : nrm(vehicleStr);
+        const brand = isGestya ? brandOf(vehicleStr) : '';
+        const fecha = pDate(r[m.d]);
+        const km = pNum(r[m.c]);
+        return { pt, brand, fecha, km: isNaN(km) ? 0 : Math.round(km * 100) / 100 };
+      })
+      .filter((x) => x.pt && x.km > 0);
 
     if (!parsed.length) return alert('No encontré filas con datos válidos (patente y km > 0).');
 
@@ -185,7 +284,12 @@ export function useImporters() {
     });
     if (outOfRange.length) {
       const oos = outOfRange.map((x) => `${x.pt}: ${x.fecha}`).slice(0, 5);
-      if (!confirm(`${outOfRange.length} filas están fuera del período ${year}-${String(month).padStart(2, '0')}:\n${oos.join('\n')}\n\n¿Continuar omitiendo estas filas?`)) return;
+      if (
+        !confirm(
+          `${outOfRange.length} filas están fuera del período ${year}-${String(month).padStart(2, '0')}:\n${oos.join('\n')}\n\n¿Continuar omitiendo estas filas?`
+        )
+      )
+        return;
     }
 
     const filteredParsed = parsed.filter((x) => {
@@ -213,19 +317,15 @@ export function useImporters() {
       .eq('year', month === 1 ? year - 1 : year)
       .eq('month', month === 1 ? 12 : month - 1);
 
-    const prevMap = new Map(
-      (kmPrevMonth.data ?? []).map((r: any) => [r.vehicle_id, r.km_total])
-    );
+    const prevMap = new Map((kmPrevMonth.data ?? []).map((r: any) => [r.vehicle_id, r.km_total]));
 
     // Verificar si el mes ya existe
-    const existing = await sb()
-      .from('km_reports')
-      .select('vehicle_id')
-      .eq('year', year)
-      .eq('month', month);
+    const existing = await sb().from('km_reports').select('vehicle_id').eq('year', year).eq('month', month);
 
     if ((existing.data ?? []).length > 0) {
-      const replace = confirm(`Ya existe reporte para ${year}-${String(month).padStart(2, '0')}.\n\n¿Reemplazar datos?`);
+      const replace = confirm(
+        `Ya existe reporte para ${year}-${String(month).padStart(2, '0')}.\n\n¿Reemplazar datos?`
+      );
       if (!replace) return;
       await sb().from('km_reports').delete().eq('year', year).eq('month', month);
     }
@@ -243,12 +343,16 @@ export function useImporters() {
     }));
 
     for (let i = 0; i < rows.length; i += 200) {
-      const { error } = await sb().from('km_reports').insert(rows.slice(i, i + 200));
+      const { error } = await sb()
+        .from('km_reports')
+        .insert(rows.slice(i, i + 200));
       if (error) throw error;
     }
 
     await reload('km_reports', 'vehicles');
-    alert(`✅ ${rows.length} vehículos importados para ${year}-${String(month).padStart(2, '0')}.\n${outOfRange.length > 0 ? `(${outOfRange.length} filas omitidas por fecha)` : ''}`);
+    alert(
+      `✅ ${rows.length} vehículos importados para ${year}-${String(month).padStart(2, '0')}.\n${outOfRange.length > 0 ? `(${outOfRange.length} filas omitidas por fecha)` : ''}`
+    );
   }
 
   return { importTrips, importFuel, importKmReport };

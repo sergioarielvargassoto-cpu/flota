@@ -17,7 +17,12 @@ export type AlertItem = {
 
 export const ORDER: Record<Status, number> = { vencido: 0, critico: 1, urgente: 2, proximo: 3, ok: 4, nd: 5 };
 export const STATUS_LABEL: Record<Status, string> = {
-  vencido: 'Vencido', critico: 'Crítico', urgente: 'Urgente', proximo: 'Próximo', ok: 'Al día', nd: 'Sin fecha',
+  vencido: 'Vencido',
+  critico: 'Crítico',
+  urgente: 'Urgente',
+  proximo: 'Próximo',
+  ok: 'Al día',
+  nd: 'Sin fecha',
 };
 
 export function statusOf(days: number | null, s: Settings): Status {
@@ -54,9 +59,16 @@ export function computeAlerts(d: Input, all = false): AlertItem[] {
     if (!v && !dr) continue;
     const days = daysTo(doc.expires_on);
     out.push({
-      kind: v ? 'Vehículo' : 'Chofer', what: doc.doc_type, who: v ? v.plate : (dr?.name ?? '(sin chofer)'),
-      date: doc.expires_on, days, status: statusOf(days, s), sort: days ?? 9999,
-      owner: v ? 'vehiculos' : 'choferes', ownerId: (v ? v.id : (dr?.id ?? '')), ref: doc.reference,
+      kind: v ? 'Vehículo' : 'Chofer',
+      what: doc.doc_type,
+      who: v ? v.plate : (dr?.name ?? '(sin chofer)'),
+      date: doc.expires_on,
+      days,
+      status: statusOf(days, s),
+      sort: days ?? 9999,
+      owner: v ? 'vehiculos' : 'choferes',
+      ownerId: v ? v.id : (dr?.id ?? ''),
+      ref: doc.reference,
     });
   }
 
@@ -72,14 +84,32 @@ export function computeAlerts(d: Input, all = false): AlertItem[] {
     if (!v) continue;
     if (m.next_date) {
       const days = daysTo(m.next_date);
-      out.push({ kind: 'Mantenimiento', what: m.type, who: v.plate, date: m.next_date, days, status: statusOf(days, s), sort: days ?? 9999, owner: 'vehiculos', ownerId: v.id });
+      out.push({
+        kind: 'Mantenimiento',
+        what: m.type,
+        who: v.plate,
+        date: m.next_date,
+        days,
+        status: statusOf(days, s),
+        sort: days ?? 9999,
+        owner: 'vehiculos',
+        ownerId: v.id,
+      });
     }
     if (m.next_km !== null && v.km !== null && !/service/i.test(m.type)) {
       const left = m.next_km - v.km;
       if (all || left <= s.km_alert)
         out.push({
-          kind: 'Mantenimiento', what: m.type + ' (por km)', who: v.plate, date: null, days: null, kmLeft: left,
-          status: left <= 0 ? 'vencido' : left <= s.km_alert ? 'proximo' : 'ok', sort: left <= 0 ? -1 : s.d1, owner: 'vehiculos', ownerId: v.id,
+          kind: 'Mantenimiento',
+          what: m.type + ' (por km)',
+          who: v.plate,
+          date: null,
+          days: null,
+          kmLeft: left,
+          status: left <= 0 ? 'vencido' : left <= s.km_alert ? 'proximo' : 'ok',
+          sort: left <= 0 ? -1 : s.d1,
+          owner: 'vehiculos',
+          ownerId: v.id,
         });
     }
   }
@@ -90,12 +120,22 @@ export function computeAlerts(d: Input, all = false): AlertItem[] {
     const left = v.last_service_km + s.service_km - v.km;
     if (all || left <= s.km_alert)
       out.push({
-        kind: 'Mantenimiento', what: `Service cada ${num(s.service_km)} km`, who: v.plate, date: null, days: null, kmLeft: left,
-        status: left <= 0 ? 'vencido' : left <= s.km_alert ? 'proximo' : 'ok', sort: left <= 0 ? -1 : s.d1, owner: 'vehiculos', ownerId: v.id,
+        kind: 'Mantenimiento',
+        what: `Service cada ${num(s.service_km)} km`,
+        who: v.plate,
+        date: null,
+        days: null,
+        kmLeft: left,
+        status: left <= 0 ? 'vencido' : left <= s.km_alert ? 'proximo' : 'ok',
+        sort: left <= 0 ? -1 : s.d1,
+        owner: 'vehiculos',
+        ownerId: v.id,
       });
   }
 
-  return out.filter((a) => all || a.status !== 'ok').sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.sort - b.sort);
+  return out
+    .filter((a) => all || a.status !== 'ok')
+    .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.sort - b.sort);
 }
 
 /** Peor estado de los vencimientos de un vehículo o chofer (null si no tiene ninguno cargado). */

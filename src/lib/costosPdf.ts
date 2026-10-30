@@ -4,7 +4,7 @@ import type { AnalisisCosto } from './analisisHelpers';
 export async function generateCostosPdf(
   data: AnalisisCosto[],
   monthYear: (string | undefined)[],
-  branch: string | null,
+  branch: string | null
 ) {
   const year = monthYear[0] || '2026';
   const month = monthYear[1] || '01';
@@ -22,7 +22,10 @@ export async function generateCostosPdf(
 
   doc.setFontSize(11);
   doc.setTextColor(100, 100, 100);
-  const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('es-AR', {
+    month: 'long',
+    year: 'numeric',
+  });
   doc.text(`Período: ${monthName}${branch ? ` - ${branch}` : ''}`, pageWidth / 2, yPos, { align: 'center' });
   yPos += 8;
   doc.text(`Generado: ${new Date().toLocaleDateString('es-AR')}`, pageWidth / 2, yPos, { align: 'center' });
@@ -30,7 +33,8 @@ export async function generateCostosPdf(
 
   // KPIs
   const totalCostos = data.reduce((s, d) => s + d.totalCostos, 0);
-  const costoPorKmPromedio = data.length > 0 ? Math.round((data.reduce((s, d) => s + d.costoPorKm, 0) / data.length) * 100) / 100 : 0;
+  const costoPorKmPromedio =
+    data.length > 0 ? Math.round((data.reduce((s, d) => s + d.costoPorKm, 0) / data.length) * 100) / 100 : 0;
 
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);

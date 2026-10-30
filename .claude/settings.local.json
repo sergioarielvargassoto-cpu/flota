@@ -29,7 +29,8 @@
       "Bash(git commit *)",
       "Bash(python3 audit.py)",
       "Bash(curl -s http://localhost:3000)",
-      "Bash(npm audit *)"
+      "Bash(npm audit *)",
+      "Bash(npx prettier *)"
     ]
   }
 }

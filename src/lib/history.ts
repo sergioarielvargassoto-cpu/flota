@@ -2,7 +2,9 @@ import { sb } from './supabase';
 
 /** Registra un cambio de kilómetros en el historial con auditoría completa */
 export async function recordKmChange(vehicleId: string, km: number, kmPrevious: number | null = null) {
-  const { data: { user } } = await sb().auth.getUser();
+  const {
+    data: { user },
+  } = await sb().auth.getUser();
   const changedBy = user?.email || 'sistema';
 
   const { error } = await sb().from('km_history').insert({
@@ -30,7 +32,12 @@ export async function recordRepairChange(repairId: string, field: string, oldVal
 }
 
 /** Registra un cambio en un mantenimiento */
-export async function recordMaintenanceChange(maintenanceId: string, field: string, oldValue: string | null, newValue: string) {
+export async function recordMaintenanceChange(
+  maintenanceId: string,
+  field: string,
+  oldValue: string | null,
+  newValue: string
+) {
   const now = new Date().toISOString();
   const { error } = await sb().from('maintenance_history').insert({
     maintenance_id: maintenanceId,

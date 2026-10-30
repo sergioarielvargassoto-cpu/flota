@@ -4,7 +4,19 @@ import { useData } from '@/lib/data';
 import { fd, num } from '@/lib/util';
 import { guard } from '@/lib/util';
 import { calcularAnalisisConductores } from '@/lib/analisisHelpers';
-import { BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import {
+  BarChart,
+  Bar,
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -15,12 +27,23 @@ export default function ReportesConductores() {
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
 
   // Obtener meses únicos
-  const months = [...new Set(infractions.map((i) => `${i.date.split('-')[0]}-${i.date.split('-')[1]}`))].sort().reverse();
-  const month = months.includes(selectedMonth) ? selectedMonth : months[0] ?? '';
+  const months = [...new Set(infractions.map((i) => `${i.date.split('-')[0]}-${i.date.split('-')[1]}`))]
+    .sort()
+    .reverse();
+  const month = months.includes(selectedMonth) ? selectedMonth : (months[0] ?? '');
   const [year, m] = (month || `${selectedYear}-01`).split('-').map(Number);
 
   // Calcular análisis
-  const analisis = calcularAnalisisConductores(drivers, infractions, trips, vehicles, fuel_loads, m, year, selectedBranch || undefined);
+  const analisis = calcularAnalisisConductores(
+    drivers,
+    infractions,
+    trips,
+    vehicles,
+    fuel_loads,
+    m,
+    year,
+    selectedBranch || undefined
+  );
   const branches = [...new Set(vehicles.map((v) => v.branch))];
   const branch = selectedBranch && branches.includes(selectedBranch) ? selectedBranch : (branches[0] ?? null);
 
@@ -45,7 +68,8 @@ export default function ReportesConductores() {
   }));
 
   // KPIs
-  const ratingPromedio = analisis.length > 0 ? Math.round(analisis.reduce((s, a) => s + a.ratingSeguridad, 0) / analisis.length) : 0;
+  const ratingPromedio =
+    analisis.length > 0 ? Math.round(analisis.reduce((s, a) => s + a.ratingSeguridad, 0) / analisis.length) : 0;
   const infraccionesTotal = analisis.reduce((s, a) => s + a.totalInfracciones, 0);
   const multasTotal = analisis.reduce((s, a) => s + a.multasAcumuladas, 0);
 
@@ -57,26 +81,48 @@ export default function ReportesConductores() {
         {months.length > 0 && (
           <>
             <select value={month} onChange={(e) => setSelectedMonth(e.target.value)}>
-              {months.map((m) => <option key={m} value={m}>{m.split('-').reverse().join('/')}</option>)}
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {m.split('-').reverse().join('/')}
+                </option>
+              ))}
             </select>
             {branches.length > 0 && (
               <select value={branch || ''} onChange={(e) => setSelectedBranch(e.target.value || null)}>
                 <option value="">Todas las sucursales</option>
-                {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+                {branches.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </select>
             )}
           </>
         )}
         {month && (
           <>
-            <button className="b1" onClick={() => guard(async () => {
-              const pdf = await import('@/lib/conductorPdf').then((m) => m.generateConductorPdf);
-              pdf(analisis, month.split('-'), branch);
-            })}>📄 PDF</button>
-            <button className="b1" onClick={() => guard(async () => {
-              const excel = await import('@/lib/excelExports').then((m) => m.exportarConductoresExcel);
-              excel(analisis, month.split('-'), branch);
-            })}>📊 Excel</button>
+            <button
+              className="b1"
+              onClick={() =>
+                guard(async () => {
+                  const pdf = await import('@/lib/conductorPdf').then((m) => m.generateConductorPdf);
+                  pdf(analisis, month.split('-'), branch);
+                })
+              }
+            >
+              📄 PDF
+            </button>
+            <button
+              className="b1"
+              onClick={() =>
+                guard(async () => {
+                  const excel = await import('@/lib/excelExports').then((m) => m.exportarConductoresExcel);
+                  excel(analisis, month.split('-'), branch);
+                })
+              }
+            >
+              📊 Excel
+            </button>
           </>
         )}
       </div>
@@ -161,20 +207,30 @@ export default function ReportesConductores() {
                 <tbody>
                   {analisis.map((a, idx) => (
                     <tr key={a.driver_id} style={{ backgroundColor: idx % 2 === 0 ? '#f9fafb' : '#fff' }}>
-                      <td><b>{a.name}</b></td>
+                      <td>
+                        <b>{a.name}</b>
+                      </td>
                       <td style={{ color: a.totalInfracciones > 0 ? '#ef4444' : '#10b981' }}>{a.totalInfracciones}</td>
-                      <td style={{ color: a.infraccionesPendientes > 0 ? '#f59e0b' : '#6b7280' }}>{a.infraccionesPendientes}</td>
+                      <td style={{ color: a.infraccionesPendientes > 0 ? '#f59e0b' : '#6b7280' }}>
+                        {a.infraccionesPendientes}
+                      </td>
                       <td>{num(Math.round(a.multasAcumuladas))}</td>
-                      <td>{a.diasConExceso} / {a.diasTotales}</td>
+                      <td>
+                        {a.diasConExceso} / {a.diasTotales}
+                      </td>
                       <td>{a.eficiencia.toFixed(1)} km/L</td>
                       <td>
-                        <span style={{
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          backgroundColor: a.ratingSeguridad >= 80 ? '#d1fae5' : a.ratingSeguridad >= 60 ? '#fef3c7' : '#fee2e2',
-                          color: a.ratingSeguridad >= 80 ? '#065f46' : a.ratingSeguridad >= 60 ? '#92400e' : '#7f1d1d',
-                          fontWeight: 'bold',
-                        }}>
+                        <span
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            backgroundColor:
+                              a.ratingSeguridad >= 80 ? '#d1fae5' : a.ratingSeguridad >= 60 ? '#fef3c7' : '#fee2e2',
+                            color:
+                              a.ratingSeguridad >= 80 ? '#065f46' : a.ratingSeguridad >= 60 ? '#92400e' : '#7f1d1d',
+                            fontWeight: 'bold',
+                          }}
+                        >
                           {a.ratingSeguridad}
                         </span>
                       </td>

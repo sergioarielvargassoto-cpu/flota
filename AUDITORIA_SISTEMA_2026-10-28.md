@@ -23,7 +23,7 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 ✅ **TypeScript strict mode**: Errores de tipo capturados en compilación  
 ✅ **React patterns correctos**: useData hook, Client Components donde corresponde  
 ✅ **Datos bien tipados**: Tipos definidos en `types.ts`, interfaces en helpers  
-✅ **RLS implementado**: Row Level Security activo en todas las tablas  
+✅ **RLS implementado**: Row Level Security activo en todas las tablas
 
 ### Oportunidades de mejora
 
@@ -40,14 +40,14 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 
 ### Detalles
 
-| Aspecto | Estado | Notas |
-|---------|--------|-------|
-| Inyección SQL | ✅ Seguro | Supabase RLS protege contra acceso no autorizado |
-| XSS | ✅ Seguro | React escapa automáticamente el contenido |
-| CSRF | ✅ Seguro | Supabase maneja CSRF tokens internamente |
-| Secrets | ✅ Seguro | Credenciales en `.env.local`, nunca en código |
-| RLS | ✅ Activo | Todas las tablas con policies de autenticación |
-| Validación entrada | ✅ Buena | Validaciones en componentes y en helpers |
+| Aspecto            | Estado    | Notas                                            |
+| ------------------ | --------- | ------------------------------------------------ |
+| Inyección SQL      | ✅ Seguro | Supabase RLS protege contra acceso no autorizado |
+| XSS                | ✅ Seguro | React escapa automáticamente el contenido        |
+| CSRF               | ✅ Seguro | Supabase maneja CSRF tokens internamente         |
+| Secrets            | ✅ Seguro | Credenciales en `.env.local`, nunca en código    |
+| RLS                | ✅ Activo | Todas las tablas con policies de autenticación   |
+| Validación entrada | ✅ Buena  | Validaciones en componentes y en helpers         |
 
 ### Recomendaciones
 
@@ -60,20 +60,20 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 
 ### Análisis
 
-| Métrica | Estado | Detalles |
-|---------|--------|---------|
-| Build time | ✅ Óptimo | 1-2s con Turbopack |
-| Bundle size | ✅ Bueno | React + Recharts + jsPDF = ~500KB (aceptable) |
-| Cálculos | ✅ O(1) | Maps/Sets para lookups (no O(n²)) |
-| Paginación | ✅ Cursores | Usa ID-based cursor, no offset |
-| Gráficos | ⚠️ Podría mejorar | 1500+ datapoints pueden ralentizar Recharts |
+| Métrica     | Estado            | Detalles                                      |
+| ----------- | ----------------- | --------------------------------------------- |
+| Build time  | ✅ Óptimo         | 1-2s con Turbopack                            |
+| Bundle size | ✅ Bueno          | React + Recharts + jsPDF = ~500KB (aceptable) |
+| Cálculos    | ✅ O(1)           | Maps/Sets para lookups (no O(n²))             |
+| Paginación  | ✅ Cursores       | Usa ID-based cursor, no offset                |
+| Gráficos    | ⚠️ Podría mejorar | 1500+ datapoints pueden ralentizar Recharts   |
 
 ### Optimizaciones Implementadas
 
 ✅ Maps para O(1) búsquedas  
 ✅ Sets para deduplicación eficiente  
 ✅ Lazy loading de PDFs (importación dinámica)  
-✅ Memoización en componentes  
+✅ Memoización en componentes
 
 ### Recomendaciones
 
@@ -95,7 +95,7 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 
 ✅ Normalización 3NF en schema  
 ✅ Cascading deletes para orphans  
-✅ Transacciones implícitas en Supabase  
+✅ Transacciones implícitas en Supabase
 
 ### Completitud
 
@@ -121,7 +121,7 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 ✅ Botones PDF con iconos claros  
 ✅ Tablas ordenables (por click en header)  
 ✅ Colores significativos (rojo=crítico, verde=ok)  
-✅ Responsive design (mobile-first)  
+✅ Responsive design (mobile-first)
 
 ### Recomendaciones
 
@@ -146,6 +146,7 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 ### Recomendaciones
 
 🟡 **Implementar tests**:
+
 - Unit tests: helpers (`calcularAnalisisConductores`, etc.)
 - Integration tests: páginas con datos reales
 - E2E tests: flujos críticos (import → report → PDF)
@@ -161,7 +162,7 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 ✅ Gestión vehículos, choferes, documentos  
 ✅ Reparaciones y mantenimiento  
 ✅ Combustible y recorridos  
-✅ Infracciones y multas con reportes  
+✅ Infracciones y multas con reportes
 
 ### Nuevo: Reporte Mensual KM
 
@@ -169,14 +170,14 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 ✅ Tabla histórica km_reports  
 ✅ Gráficos evolución mensual  
 ✅ Exclusión de vehículos (sin borrar)  
-✅ Multi-sucursal soportado  
+✅ Multi-sucursal soportado
 
 ### Nuevo: Análisis Avanzado
 
 ✅ Análisis de Conductores (rating seguridad 0-100)  
 ✅ Análisis de Costos (combustible + reparaciones + multas)  
 ✅ Comparativas entre sucursales  
-✅ Todos con PDF profesional  
+✅ Todos con PDF profesional
 
 ---
 
@@ -187,13 +188,13 @@ El sistema **Control de Flota** es una aplicación **profesional, robusta y bien
 ```
 Excel Gestya → parseSheet() → detectColumns() → Validación
   ↓
-Detección automática formato  
+Detección automática formato
   ↓
-Normalización patentes, fechas, km  
+Normalización patentes, fechas, km
   ↓
-Búsqueda/creación vehículos  
+Búsqueda/creación vehículos
   ↓
-Insert → km_reports / fuel_loads / trips  
+Insert → km_reports / fuel_loads / trips
   ↓
 reload() → Actualizar UI
 ```
@@ -223,31 +224,31 @@ generateConductorPdf() → PDF
 ✅ **Auto-deploy** en cada push a main  
 ✅ **Build success rate**: 100% (últimos 4 commits)  
 ✅ **Environment variables**: Configuradas en Vercel dashboard  
-✅ **URL live**: https://flota-sergioarielvargassoto.vercel.app  
+✅ **URL live**: https://flota-sergioarielvargassoto.vercel.app
 
 ### GitHub
 
 ✅ **Repository público**: Fácil colaboración  
 ✅ **Commits limpios**: Mensajes descriptivos  
-✅ **Main branch protegida**: Aunque sin PR requerido  
+✅ **Main branch protegida**: Aunque sin PR requerido
 
 ### Base de datos (Supabase)
 
 ✅ **RLS activo**: Protección de datos  
 ✅ **Backups automáticos**: Retención 30 días  
-✅ **Índices óptimos**: En campos filtrados  
+✅ **Índices óptimos**: En campos filtrados
 
 ---
 
 ## 📝 DOCUMENTACIÓN
 
-| Tipo | Estado | Ubicación |
-|------|--------|-----------|
-| Plan técnico | ✅ Existe | PLAN_ANALISIS_AVANZADO.md |
-| Esquema DB | ✅ Existe | supabase/migrations/0001_schema.sql |
-| Helpers | ⚠️ Comenta mal | analisisHelpers.ts: falta docstrings |
-| API | ⚠️ No existe | Supabase RPC sin documentar |
-| Deployment | ✅ Implícito | Vercel auto-deploy, .env.example |
+| Tipo         | Estado         | Ubicación                            |
+| ------------ | -------------- | ------------------------------------ |
+| Plan técnico | ✅ Existe      | PLAN_ANALISIS_AVANZADO.md            |
+| Esquema DB   | ✅ Existe      | supabase/migrations/0001_schema.sql  |
+| Helpers      | ⚠️ Comenta mal | analisisHelpers.ts: falta docstrings |
+| API          | ⚠️ No existe   | Supabase RPC sin documentar          |
+| Deployment   | ✅ Implícito   | Vercel auto-deploy, .env.example     |
 
 ---
 
@@ -280,19 +281,19 @@ generateConductorPdf() → PDF
 
 ### Métricas
 
-| Métrica | Valor | Status |
-|---------|-------|--------|
-| Líneas de código | ~3500 | ✅ Manejable |
-| Archivos | 18 | ✅ Organizado |
-| Archivos de tipo | 14 | ✅ Bien tipado |
-| Librerías | 8 | ✅ Mínimo necesario |
-| Componentes reutilizables | 12 | ✅ Buena modularidad |
+| Métrica                   | Valor | Status               |
+| ------------------------- | ----- | -------------------- |
+| Líneas de código          | ~3500 | ✅ Manejable         |
+| Archivos                  | 18    | ✅ Organizado        |
+| Archivos de tipo          | 14    | ✅ Bien tipado       |
+| Librerías                 | 8     | ✅ Mínimo necesario  |
+| Componentes reutilizables | 12    | ✅ Buena modularidad |
 
 ### Compilación
 
 ✅ **TypeScript**: Sin errores (strict mode)  
 ✅ **Build**: 100% success (últimos 4 builds)  
-✅ **Warnings**: 0 críticos  
+✅ **Warnings**: 0 críticos
 
 ---
 
@@ -304,13 +305,13 @@ generateConductorPdf() → PDF
 ✅ **Reutilización**: Reaprovechamos importadores, tipos, componentes  
 ✅ **TypeScript**: Muchos bugs atrapados en compilación  
 ✅ **Supabase**: RLS simplifica seguridad  
-✅ **Vercel**: Deployment sin fricción  
+✅ **Vercel**: Deployment sin fricción
 
 ### Desafíos
 
 ⚠️ **Naming**: `viajesdel Conductor` (error de tipeo) → agregar linting  
 ⚠️ **Performance**: Recharts con muchos datapoints → virtualizar tablas  
-⚠️ **Documentación**: Helpers sin jsdoc → automatizar con doc generator  
+⚠️ **Documentación**: Helpers sin jsdoc → automatizar con doc generator
 
 ---
 
@@ -338,6 +339,7 @@ generateConductorPdf() → PDF
 **✅ PRODUCCIÓN LISTA**
 
 El sistema es:
+
 - 🔒 **Seguro**: RLS, validaciones, sin vulnerabilidades
 - ⚡ **Rápido**: O(1) búsquedas, build 2s
 - 🎨 **Usable**: UI consistente, filtros dinámicos

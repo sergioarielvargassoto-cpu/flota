@@ -2,8 +2,24 @@
 import { useState } from 'react';
 import { useData } from '@/lib/data';
 import { num, money, guard } from '@/lib/util';
-import { calcularAnalisisConductores, calcularAnalisisCostos, calcularComparativasSucursales } from '@/lib/analisisHelpers';
-import { BarChart, Bar, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import {
+  calcularAnalisisConductores,
+  calcularAnalisisCostos,
+  calcularComparativasSucursales,
+} from '@/lib/analisisHelpers';
+import {
+  BarChart,
+  Bar,
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -13,8 +29,10 @@ export default function ReportesSucursales() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   // Obtener meses únicos
-  const months = [...new Set(fuel_loads.map((f) => `${f.date.split('-')[0]}-${f.date.split('-')[1]}`))].sort().reverse();
-  const month = months.includes(selectedMonth) ? selectedMonth : months[0] ?? '';
+  const months = [...new Set(fuel_loads.map((f) => `${f.date.split('-')[0]}-${f.date.split('-')[1]}`))]
+    .sort()
+    .reverse();
+  const month = months.includes(selectedMonth) ? selectedMonth : (months[0] ?? '');
   const [year, m] = (month || `${selectedYear}-01`).split('-').map(Number);
 
   // Calcular análisis
@@ -49,12 +67,23 @@ export default function ReportesSucursales() {
         {months.length > 0 && (
           <>
             <select value={month} onChange={(e) => setSelectedMonth(e.target.value)}>
-              {months.map((m) => <option key={m} value={m}>{m.split('-').reverse().join('/')}</option>)}
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {m.split('-').reverse().join('/')}
+                </option>
+              ))}
             </select>
-            <button className="b1" onClick={() => guard(async () => {
-              const excel = await import('@/lib/excelExports').then((m) => m.exportarSucursalesExcel);
-              excel(comparativas, month.split('-'));
-            })}>📊 Excel</button>
+            <button
+              className="b1"
+              onClick={() =>
+                guard(async () => {
+                  const excel = await import('@/lib/excelExports').then((m) => m.exportarSucursalesExcel);
+                  excel(comparativas, month.split('-'));
+                })
+              }
+            >
+              📊 Excel
+            </button>
           </>
         )}
       </div>
@@ -149,21 +178,37 @@ export default function ReportesSucursales() {
                 <tbody>
                   {comparativas.map((c, idx) => (
                     <tr key={c.branch} style={{ backgroundColor: idx % 2 === 0 ? '#f9fafb' : '#fff' }}>
-                      <td><b>{c.branch}</b></td>
+                      <td>
+                        <b>{c.branch}</b>
+                      </td>
                       <td>{num(c.totalKm)}</td>
                       <td>{num(Math.round(c.totalCombustible))} L</td>
-                      <td style={{ color: c.costPromedioKm > 1.5 ? '#ef4444' : '#10b981' }}><b>{money(c.costPromedioKm)}</b></td>
+                      <td style={{ color: c.costPromedioKm > 1.5 ? '#ef4444' : '#10b981' }}>
+                        <b>{money(c.costPromedioKm)}</b>
+                      </td>
                       <td>{c.totalInfracciones}</td>
                       <td>{c.cantidadConductores}</td>
                       <td>{c.cantidadVehiculos}</td>
                       <td>
-                        <span style={{
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          backgroundColor: c.ratingSeguridadPromedio >= 80 ? '#d1fae5' : c.ratingSeguridadPromedio >= 60 ? '#fef3c7' : '#fee2e2',
-                          color: c.ratingSeguridadPromedio >= 80 ? '#065f46' : c.ratingSeguridadPromedio >= 60 ? '#92400e' : '#7f1d1d',
-                          fontWeight: 'bold',
-                        }}>
+                        <span
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            backgroundColor:
+                              c.ratingSeguridadPromedio >= 80
+                                ? '#d1fae5'
+                                : c.ratingSeguridadPromedio >= 60
+                                  ? '#fef3c7'
+                                  : '#fee2e2',
+                            color:
+                              c.ratingSeguridadPromedio >= 80
+                                ? '#065f46'
+                                : c.ratingSeguridadPromedio >= 60
+                                  ? '#92400e'
+                                  : '#7f1d1d',
+                            fontWeight: 'bold',
+                          }}
+                        >
                           {c.ratingSeguridadPromedio}
                         </span>
                       </td>
@@ -175,14 +220,35 @@ export default function ReportesSucursales() {
             </div>
           </div>
 
-          <div style={{ marginTop: '30px', padding: '20px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+          <div
+            style={{
+              marginTop: '30px',
+              padding: '20px',
+              backgroundColor: '#f0f9ff',
+              borderRadius: '8px',
+              border: '1px solid #bfdbfe',
+            }}
+          >
             <h3 style={{ marginTop: 0 }}>📊 Resumen Ejecutivo</h3>
             <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
-              <li><b>Sucursal más eficiente (costo/km):</b> {comparativas.reduce((a, b) => a.costPromedioKm < b.costPromedioKm ? a : b).branch}</li>
-              <li><b>Sucursal más segura (rating):</b> {comparativas.reduce((a, b) => a.ratingSeguridadPromedio > b.ratingSeguridadPromedio ? a : b).branch}</li>
-              <li><b>Sucursal con mejor eficiencia (km/litro):</b> {comparativas.reduce((a, b) => a.eficienciaPromedio > b.eficienciaPromedio ? a : b).branch}</li>
-              <li><b>Total de km en flota:</b> {num(comparativas.reduce((s, c) => s + c.totalKm, 0))}</li>
-              <li><b>Infracciones totales:</b> {comparativas.reduce((s, c) => s + c.totalInfracciones, 0)}</li>
+              <li>
+                <b>Sucursal más eficiente (costo/km):</b>{' '}
+                {comparativas.reduce((a, b) => (a.costPromedioKm < b.costPromedioKm ? a : b)).branch}
+              </li>
+              <li>
+                <b>Sucursal más segura (rating):</b>{' '}
+                {comparativas.reduce((a, b) => (a.ratingSeguridadPromedio > b.ratingSeguridadPromedio ? a : b)).branch}
+              </li>
+              <li>
+                <b>Sucursal con mejor eficiencia (km/litro):</b>{' '}
+                {comparativas.reduce((a, b) => (a.eficienciaPromedio > b.eficienciaPromedio ? a : b)).branch}
+              </li>
+              <li>
+                <b>Total de km en flota:</b> {num(comparativas.reduce((s, c) => s + c.totalKm, 0))}
+              </li>
+              <li>
+                <b>Infracciones totales:</b> {comparativas.reduce((s, c) => s + c.totalInfracciones, 0)}
+              </li>
             </ul>
           </div>
         </>

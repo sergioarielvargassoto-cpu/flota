@@ -15,10 +15,22 @@ export default function Mantenimientos() {
   return (
     <>
       <div className="bar">
-        <h2 style={{ margin: 0 }}>Mantenimientos</h2><span className="sp" />
-        <select value={fv} onChange={(e) => setFv(e.target.value)}><option value="">Todos los vehículos</option>{vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate}</option>)}</select>
-        <span className="muted">Total: <b>{money(total)}</b></span>
-        <button className="b1" onClick={() => open((c) => <MaintForm onClose={c} />)}>+ Mantenimiento</button>
+        <h2 style={{ margin: 0 }}>Mantenimientos</h2>
+        <span className="sp" />
+        <select value={fv} onChange={(e) => setFv(e.target.value)}>
+          <option value="">Todos los vehículos</option>
+          {vehicles.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.plate}
+            </option>
+          ))}
+        </select>
+        <span className="muted">
+          Total: <b>{money(total)}</b>
+        </span>
+        <button className="b1" onClick={() => open((c) => <MaintForm onClose={c} />)}>
+          + Mantenimiento
+        </button>
       </div>
       <MaintTable list={l} showVehicle />
       {el}

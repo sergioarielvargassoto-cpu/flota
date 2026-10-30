@@ -4,7 +4,7 @@ import type { AnalisisConductor } from './analisisHelpers';
 export async function generateConductorPdf(
   data: AnalisisConductor[],
   monthYear: (string | undefined)[],
-  branch: string | null,
+  branch: string | null
 ) {
   const year = monthYear[0] || '2026';
   const month = monthYear[1] || '01';
@@ -22,14 +22,18 @@ export async function generateConductorPdf(
 
   doc.setFontSize(11);
   doc.setTextColor(100, 100, 100);
-  const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('es-AR', {
+    month: 'long',
+    year: 'numeric',
+  });
   doc.text(`Período: ${monthName}${branch ? ` - ${branch}` : ''}`, pageWidth / 2, yPos, { align: 'center' });
   yPos += 8;
   doc.text(`Generado: ${new Date().toLocaleDateString('es-AR')}`, pageWidth / 2, yPos, { align: 'center' });
   yPos += 12;
 
   // KPIs
-  const ratingPromedio = data.length > 0 ? Math.round(data.reduce((s, d) => s + d.ratingSeguridad, 0) / data.length) : 0;
+  const ratingPromedio =
+    data.length > 0 ? Math.round(data.reduce((s, d) => s + d.ratingSeguridad, 0) / data.length) : 0;
   const infraccionesTotal = data.reduce((s, d) => s + d.totalInfracciones, 0);
   const multasTotal = data.reduce((s, d) => s + d.multasAcumuladas, 0);
 

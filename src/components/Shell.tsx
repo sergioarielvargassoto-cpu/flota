@@ -4,9 +4,17 @@ import { usePathname } from 'next/navigation';
 import { useData } from '@/lib/data';
 
 const TABS: [string, string][] = [
-  ['/', '📊 Panel'], ['/vehiculos', '🚚 Vehículos'], ['/choferes', '🪪 Choferes'], ['/infracciones', '⚠️ Infracciones'],
-  ['/reportes', '📈 Reportes'], ['/reparaciones', '🔧 Reparaciones'], ['/mantenimientos', '🛢 Mantenimientos'], ['/recorridos', '📍 Recorridos'],
-  ['/combustible', '⛽ Combustible'], ['/talleres', '🏭 Talleres'], ['/ajustes', '⚙ Ajustes'],
+  ['/', '📊 Panel'],
+  ['/vehiculos', '🚚 Vehículos'],
+  ['/choferes', '🪪 Choferes'],
+  ['/infracciones', '⚠️ Infracciones'],
+  ['/reportes', '📈 Reportes'],
+  ['/reparaciones', '🔧 Reparaciones'],
+  ['/mantenimientos', '🛢 Mantenimientos'],
+  ['/recorridos', '📍 Recorridos'],
+  ['/combustible', '⛽ Combustible'],
+  ['/talleres', '🏭 Talleres'],
+  ['/ajustes', '⚙ Ajustes'],
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -15,10 +23,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <header>
-        <h1>🚚 Control de Flota <span className="muted">{settings.company ? '· ' + settings.company : ''}</span></h1>
+        <h1>
+          🚚 Control de Flota <span className="muted">{settings.company ? '· ' + settings.company : ''}</span>
+        </h1>
         <nav>
           {TABS.map(([href, label]) => (
-            <Link key={href} href={href} className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'on' : ''}>{label}</Link>
+            <Link key={href} href={href} className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'on' : ''}>
+              {label}
+            </Link>
           ))}
         </nav>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -26,7 +38,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </header>
       <main>
         {error ? (
-          <div className="err">No pude cargar los datos: {error}{'\n\n'}¿Ejecutaste el SQL de supabase/migrations/0001_schema.sql?</div>
+          <div className="err">
+            No pude cargar los datos: {error}
+            {'\n\n'}¿Ejecutaste el SQL de supabase/migrations/0001_schema.sql?
+          </div>
         ) : loading ? (
           <div className="empty">Cargando datos…</div>
         ) : (
