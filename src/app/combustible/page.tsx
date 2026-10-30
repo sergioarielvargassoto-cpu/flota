@@ -14,9 +14,10 @@ export default function Combustible() {
   const { el, open } = useModal();
   const [fv, setFv] = useState('');
   const [fm, setFm] = useState('');
+  const [fp, setFp] = useState('');
   const [rows, setRows] = useState<unknown[][] | null>(null);
 
-  const l = fuel_loads.filter((f) => (!fv || f.vehicle_id === fv) && (!fm || f.date.startsWith(fm)));
+  const l = fuel_loads.filter((f) => (!fv || f.vehicle_id === fv) && (!fm || f.date.startsWith(fm)) && (!fp || vehicles.find((v) => v.id === f.vehicle_id)?.provincia === fp));
   const by = new Map<string, typeof l>();
   l.forEach((f) => by.set(f.vehicle_id, [...(by.get(f.vehicle_id) ?? []), f]));
 
@@ -41,6 +42,13 @@ export default function Combustible() {
       <div className="bar">
         <h2 style={{ margin: 0 }}>Combustible (YPF en Ruta)</h2><span className="sp" />
         <select value={fv} onChange={(e) => setFv(e.target.value)}><option value="">Todos los vehículos</option>{vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate}</option>)}</select>
+        <select value={fp} onChange={(e) => setFp(e.target.value)}>
+          <option value="">Todas las provincias</option>
+          <option value="Corrientes">Corrientes</option>
+          <option value="Formosa">Formosa</option>
+          <option value="Misiones">Misiones</option>
+          <option value="Chaco">Chaco</option>
+        </select>
         <input type="month" value={fm} onChange={(e) => setFm(e.target.value)} title="Filtrar por mes" />
         <button className="b2" onClick={async () => setRows(await pickSheet())}>⬆ Importar Excel YPF</button>
         <button className="b1" onClick={() => open((c) => <FuelForm onClose={c} />)}>+ Carga</button>

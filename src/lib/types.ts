@@ -2,7 +2,7 @@ export type Vehicle = {
   id: string; plate: string; type: string | null; brand: string | null; model: string | null;
   year: number | null; km: number | null; km_date: string | null; last_service_km: number | null;
   fuel_card: string | null; driver_id: string | null; status: 'Activo' | 'En taller' | 'Baja';
-  chassis: string | null; notes: string | null; branch: string; exclude_from_reports: boolean;
+  chassis: string | null; notes: string | null; branch: string; provincia: string; exclude_from_reports: boolean;
 };
 export type Driver = { id: string; name: string; dni: string | null; phone: string | null; notes: string | null };
 export type Doc = {

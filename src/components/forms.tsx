@@ -35,6 +35,7 @@ export function VehicleForm({ id, onClose }: { id?: string; onClose: () => void 
     { k: 'year', l: 'Año', t: 'number', half: true }, { k: 'km', l: 'Kilometraje actual', t: 'number', half: true },
     { k: 'driver_id', l: 'Chofer asignado', t: 'select', options: [['', '— sin asignar —'], ...drivers.map((d): [string, string] => [d.id, d.name])], half: true },
     { k: 'status', l: 'Estado', t: 'select', options: ['Activo', 'En taller', 'Baja'], half: true },
+    { k: 'provincia', l: 'Provincia', t: 'select', options: ['Corrientes', 'Formosa', 'Misiones', 'Chaco'], half: true },
     { k: 'last_service_km', l: 'Km del último service', t: 'number', half: true },
     { k: 'fuel_card', l: 'Tarjeta YPF en Ruta (últimos dígitos)', half: true },
     { k: 'chassis', l: 'N° de chasis / motor' }, { k: 'notes', l: 'Notas', t: 'textarea' },

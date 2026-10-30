@@ -13,6 +13,7 @@ export default function Recorridos() {
   const { importTrips } = useImporters();
   const [rows, setRows] = useState<unknown[][] | null>(null);
   const [tm, setTm] = useState('');
+  const [tp, setTp] = useState('');
   const [tv, setTv] = useState('');
 
   const months = [...new Set(trips.map((t) => t.date.slice(0, 7)))].sort().reverse();
@@ -22,7 +23,7 @@ export default function Recorridos() {
   const by = new Map<string, typeof T>();
   T.forEach((t) => by.set(t.vehicle_id, [...(by.get(t.vehicle_id) ?? []), t]));
 
-  const data = vehicles.filter((v) => by.has(v.id) || F.some((f) => f.vehicle_id === v.id)).map((v) => {
+  const data = vehicles.filter((v) => (tp ? v.provincia === tp : true) && (by.has(v.id) || F.some((f) => f.vehicle_id === v.id))).map((v) => {
     const a = by.get(v.id) ?? [], ff = F.filter((f) => f.vehicle_id === v.id);
     return {
       v, has: a.length > 0, km: a.reduce((s, t) => s + t.km_calc, 0), kr: a.reduce((s, t) => s + (t.km_reported ?? 0), 0),
@@ -43,6 +44,13 @@ export default function Recorridos() {
             {months.map((m) => <option key={m} value={m}>{m.split('-').reverse().join('/')}</option>)}
           </select>
         )}
+        <select value={tp} onChange={(e) => { setTp(e.target.value); setTv(''); }}>
+          <option value="">Todas las provincias</option>
+          <option value="Corrientes">Corrientes</option>
+          <option value="Formosa">Formosa</option>
+          <option value="Misiones">Misiones</option>
+          <option value="Chaco">Chaco</option>
+        </select>
         <button className="b2" onClick={async () => setRows(await pickSheet())}>⬆ Importar Excel Gestya</button>
       </div>
       {data.length ? (
