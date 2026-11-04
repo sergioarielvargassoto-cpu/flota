@@ -4,7 +4,7 @@ import { useData } from '@/lib/data';
 import { fd, money, num } from '@/lib/util';
 import { guard } from '@/lib/util';
 import { pickSheet } from '@/lib/excel';
-import { KM_SPEC, useImporters } from '@/lib/importers';
+import { TRIP_SPEC, useImporters } from '@/lib/importers';
 import { ImportDialog } from '@/components/ImportDialog';
 import {
   BarChart,
@@ -22,7 +22,7 @@ import {
 
 export default function ReportesKm() {
   const { km_reports, vehicles, trips } = useData();
-  const { importKmReport } = useImporters();
+  const { importGestya } = useImporters();
   const [rows, setRows] = useState<unknown[][] | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -313,13 +313,10 @@ export default function ReportesKm() {
         <ImportDialog
           title="Importar Distancias Diarias de Gestya"
           rows={rows}
-          spec={KM_SPEC}
+          spec={TRIP_SPEC}
           onClose={() => setRows(null)}
           onConfirm={async (d, map) => {
-            const m = parseInt(prompt('Mes (1-12):', String(new Date().getMonth() + 1)) || '');
-            const y = parseInt(prompt('Año:', String(new Date().getFullYear())) || '');
-            if (!m || !y || m < 1 || m > 12) return alert('Mes/año inválido');
-            await guard(() => importKmReport(d, map, m, y, rows[0]?.[0]?.toString().slice(0, 50) || 'import'));
+            await guard(() => importGestya(d, map));
           }}
         />
       )}

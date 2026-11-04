@@ -1,6 +1,8 @@
 'use client';
 import { useData } from './data';
 import { sb } from './supabase';
+import { recordKmChange } from './history';
+import { checkReading, lastGpsDate, type TripLite } from './kmAudit';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
 import { DOC_VEHICLE_DEFAULT, isFuel, nrm, okOdo, pDate, pNum } from './util';
@@ -79,8 +81,11 @@ export function useImporters() {
     return byPlate;
   }
 
-  async function importTrips(data: unknown[][], m: Record<string, number>) {
-    if (m.v < 0 || m.d < 0 || (m.c < 0 && m.r < 0)) return alert('Hacen falta vehículo, día y distancia.');
+  async function importTrips(data: unknown[][], m: Record<string, number>, quiet = false) {
+    if (m.v < 0 || m.d < 0 || (m.c < 0 && m.r < 0)) {
+      alert('Hacen falta vehículo, día y distancia.');
+      return null;
+    }
     const parsed = data
       .map((r) => ({
         pt: patOf(r[m.v]),
@@ -92,7 +97,10 @@ export function useImporters() {
         mov: m.m >= 0 ? String(r[m.m] ?? '') : '',
       }))
       .filter((x) => x.pt && x.fecha && (!isNaN(x.c) || !isNaN(x.r)));
-    if (!parsed.length) return alert('No encontré filas con datos válidos.');
+    if (!parsed.length) {
+      alert('No encontré filas con datos válidos.');
+      return null;
+    }
 
     const byPlate = await ensureVehicles(new Map(parsed.map((x) => [x.pt, x.brand])));
     const existing = new Set(trips.map((t) => t.vehicle_id + '|' + t.date));
@@ -117,7 +125,8 @@ export function useImporters() {
       rows.set(v.id + '|' + x.fecha, {
         vehicle_id: v.id,
         date: x.fecha,
-        km_calc: r2(!isNaN(x.c) ? x.c : x.r),
+        // Se usa la distancia REPORTADA (la calculada de Gestya no es confiable); la calculada solo es respaldo.
+        km_calc: r2(!isNaN(x.r) ? x.r : x.c),
         km_reported: isNaN(x.r) ? null : r2(x.r),
         max_speed: isNaN(x.x) ? null : Math.round(x.x),
         moving_time: x.mov || null,
@@ -132,25 +141,140 @@ export function useImporters() {
     }
     // km actual = última lectura de odómetro + km del GPS posteriores a esa lectura (solo días nuevos)
     const fresh = list.filter((t) => !existing.has(t.vehicle_id + '|' + t.date));
+    const noBase: string[] = [];
+    let updated = 0;
     const byVeh = new Map<string, typeof fresh>();
     fresh.forEach((t) => byVeh.set(t.vehicle_id, [...(byVeh.get(t.vehicle_id) ?? []), t]));
     for (const [vid, arr] of byVeh) {
       const v = [...byPlate.values()].find((x) => x.id === vid);
-      if (!v || v.km === null || !v.km_date) continue;
+      if (!v) continue;
+      if (v.km === null || !v.km_date) {
+        if (arr.some((t) => t.km_calc > 0)) noBase.push(v.plate);
+        continue;
+      }
       const nd = arr.filter((t) => t.date > v.km_date!);
       if (!nd.length) continue;
+      const newKm = Math.round(v.km + nd.reduce((s, t) => s + t.km_calc, 0));
+      if (newKm === v.km) continue;
       const { error } = await sb()
         .from('vehicles')
         .update({
-          km: Math.round(v.km + nd.reduce((s, t) => s + t.km_calc, 0)),
+          km: newKm,
           km_date: nd.reduce((mx, t) => (t.date > mx ? t.date : mx), v.km_date),
         })
         .eq('id', vid);
       if (error) throw error;
+      await recordKmChange(vid, newKm, v.km);
+      updated++;
     }
     await reload('vehicles', 'documents', 'trips');
+    const noBaseMsg = noBase.length
+      ? `
+⚠ Sin km inicial cargado (cargalo en Vehículos y volvé a importar): ${noBase.join(', ')}`
+      : '';
+    if (quiet) return { list, fresh: fresh.length, skipped, updated, noBaseMsg };
     alert(
-      `${fresh.length} días nuevos, ${list.length - fresh.length} actualizados${skipped ? `, ${skipped} filas omitidas (vehículo no creado)` : ''}.\nEl km actual de cada vehículo se actualizó sumando la distancia posterior a su última lectura de odómetro.`
+      `${fresh.length} días nuevos, ${list.length - fresh.length} actualizados${skipped ? `, ${skipped} filas omitidas (vehículo no creado)` : ''}.\nEl km actual de cada vehículo se actualizó sumando la distancia posterior a su última lectura de odómetro (${updated} vehículos).${noBaseMsg}`
+    );
+    return { list, fresh: fresh.length, skipped, updated, noBaseMsg };
+  }
+
+  /**
+   * Importación mensual de Gestya en un solo paso:
+   *  1) guarda los días en `trips` y actualiza el km actual de cada vehículo (solo días posteriores a su última lectura),
+   *  2) reconstruye `km_reports` de cada mes que aparezca en el archivo a partir de `trips`.
+   * El mes sale de la columna Día, no hay que indicarlo. Los meses que no están en el archivo no se tocan.
+   */
+  async function importGestya(data: unknown[][], m: Record<string, number>) {
+    const res = await importTrips(data, m, true);
+    if (!res) return;
+    const periods = new Map<string, { y: number; mo: number }>();
+    res.list.forEach((t) => {
+      const [y, mo] = t.date.split('-').map(Number);
+      periods.set(`${y}-${mo}`, { y, mo });
+    });
+    const vehById = new Map(vehicles.map((v) => [v.id, v]));
+    const summary: string[] = [];
+    const allTrips: TripLite[] = [];
+    let minD = '9999',
+      maxD = '0000';
+    for (const { y, mo } of [...periods.values()].sort((a, b) => a.y * 12 + a.mo - (b.y * 12 + b.mo))) {
+      const pad = String(mo).padStart(2, '0');
+      const from = `${y}-${pad}-01`;
+      const to = `${mo === 12 ? y + 1 : y}-${String(mo === 12 ? 1 : mo + 1).padStart(2, '0')}-01`;
+      const { data: tr, error } = await sb()
+        .from('trips')
+        .select('vehicle_id,date,km_calc')
+        .gte('date', from)
+        .lt('date', to)
+        .limit(5000);
+      if (error) throw error;
+      allTrips.push(...((tr ?? []) as TripLite[]));
+      if (from < minD) minD = from;
+      if (to > maxD) maxD = to;
+      const byV = new Map<string, { total: number; day: Record<string, number> }>();
+      for (const t of (tr ?? []) as { vehicle_id: string; date: string; km_calc: number }[]) {
+        if (!(t.km_calc > 0)) continue;
+        const e = byV.get(t.vehicle_id) ?? { total: 0, day: {} };
+        e.total += Number(t.km_calc);
+        e.day[t.date] = Number(t.km_calc);
+        byV.set(t.vehicle_id, e);
+      }
+      const py = mo === 1 ? y - 1 : y,
+        pm = mo === 1 ? 12 : mo - 1;
+      const prev = await sb().from('km_reports').select('vehicle_id,km_total').eq('year', py).eq('month', pm);
+      const prevMap = new Map(
+        ((prev.data ?? []) as { vehicle_id: string; km_total: number }[]).map((r) => [r.vehicle_id, r.km_total])
+      );
+      const rows = [...byV.entries()].map(([vid, e]) => ({
+        vehicle_id: vid,
+        month: mo,
+        year: y,
+        km_total: r2(e.total),
+        km_previous: prevMap.get(vid) || null,
+        km_by_day: e.day,
+        branch: vehById.get(vid)?.branch || 'Corrientes',
+        imported_from: 'Gestya ' + new Date().toISOString().slice(0, 10),
+      }));
+      const del = await sb().from('km_reports').delete().eq('year', y).eq('month', mo);
+      if (del.error) throw del.error;
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error: e2 } = await sb().from('km_reports').insert(rows.slice(i, i + 200));
+        if (e2) throw e2;
+      }
+      summary.push(`${pad}/${y}: ${rows.length} vehículos`);
+    }
+    // Auditoría: lecturas de odómetro declaradas en estaciones vs. km del GPS en cada tramo
+    const flags: string[] = [];
+    const fl = await sb()
+      .from('fuel_loads')
+      .select('vehicle_id,date,km_raw')
+      .not('km_raw', 'is', null)
+      .gte('date', minD)
+      .lt('date', maxD)
+      .order('date')
+      .limit(5000);
+    if (!fl.error) {
+      const byVeh = new Map<string, { date: string; km: number }[]>();
+      (fl.data as { vehicle_id: string; date: string; km_raw: number }[]).forEach((r) =>
+        byVeh.set(r.vehicle_id, [...(byVeh.get(r.vehicle_id) ?? []), { date: r.date, km: r.km_raw }])
+      );
+      for (const [vid, arr] of byVeh) {
+        let a = arr[0];
+        for (const cur of arr.slice(1)) {
+          if (cur.date === a.date) continue;
+          const c = checkReading(allTrips, vid, a, cur);
+          if (c.ok) a = cur;
+          else if (flags.length < 15)
+            flags.push(
+              `${vehById.get(vid)?.plate ?? vid} ${cur.date}: declaró ${cur.km.toLocaleString('es-AR')}, GPS indica ~${c.expected.toLocaleString('es-AR')} (dif ${c.diff > 0 ? '+' : ''}${c.diff} km)`
+            );
+        }
+      }
+    }
+    await reload('km_reports', 'vehicles', 'trips');
+    alert(
+      `✅ Gestya importado.\nReportes: ${summary.join(' · ')}\n${res.fresh} días nuevos en recorridos; km actualizado en ${res.updated} vehículos.${res.noBaseMsg}${res.skipped ? `\n${res.skipped} filas omitidas (vehículo no creado).` : ''}${flags.length ? `\n\n⚠ Odómetros que no coinciden con el GPS:\n${flags.join('\n')}` : '\n✔ Odómetros de estaciones coherentes con el GPS.'}`
     );
   }
 
@@ -187,9 +311,50 @@ export function useImporters() {
     L.sort((a, b) => a.fecha.localeCompare(b.fecha));
     const haveReceipt = new Set(fuel_loads.map((f) => f.receipt).filter(Boolean));
     const haveKey = new Set(fuel_loads.map((f) => [f.vehicle_id, f.date, f.liters, f.amount].join('|')));
-    const state = new Map<string, { km: number | null; date: string | null; card: string | null; changed: boolean }>();
-    byPlate.forEach((v) => state.set(v.id, { km: v.km, date: v.km_date, card: v.fuel_card, changed: false }));
-
+    // Fuente de verdad del km = odómetro del tablero leído en la estación. El GPS (Gestya) solo rellena entre lecturas.
+    type St = {
+      km: number | null;
+      date: string | null;
+      card: string | null;
+      changed: boolean;
+      prevKm: number | null;
+      odoDate: string | null;
+      odo: number | null;
+    };
+    // Ancla = última lectura de tablero aceptada (o, si no hay, el km actual del vehículo con su fecha).
+    const anchor = new Map<string, { date: string; km: number }>();
+    fuel_loads.forEach((f) => {
+      if (f.km === null || f.km === undefined) return;
+      const a = anchor.get(f.vehicle_id);
+      if (!a || f.date > a.date) anchor.set(f.vehicle_id, { date: f.date, km: f.km });
+    });
+    const state = new Map<string, St>();
+    byPlate.forEach((v) => {
+      if (!anchor.has(v.id) && v.km !== null && v.km_date) anchor.set(v.id, { date: v.km_date, km: v.km });
+      const a = anchor.get(v.id);
+      state.set(v.id, {
+        km: v.km,
+        date: v.km_date,
+        card: v.fuel_card,
+        changed: false,
+        prevKm: v.km,
+        odoDate: a?.date ?? null,
+        odo: null,
+      });
+    });
+    const alerts: string[] = [];
+    /** Valida una lectura nueva: contra el GPS si hay datos hasta esa fecha; si no, con el tope de plausibilidad. */
+    const validate = (vid: string, plate: string, st: St, fecha: string, odo: number) => {
+      const a = anchor.get(vid);
+      if (!a) return true; // primera lectura del vehículo: se acepta y queda como ancla
+      if (fecha <= a.date) return okOdo(st.km, st.date, fecha, odo) || st.km === null;
+      const lg = lastGpsDate(trips, vid);
+      if (!lg || lg < fecha) return okOdo(st.km, st.date, fecha, odo); // GPS aún sin cargar: se audita al subir Gestya
+      const c = checkReading(trips, vid, a, { date: fecha, km: odo });
+      if (!c.ok && alerts.length < 12)
+        alerts.push(`${plate} ${fecha}: declaró ${odo.toLocaleString('es-AR')}, GPS indica ~${c.expected.toLocaleString('es-AR')} (dif ${c.diff > 0 ? '+' : ''}${c.diff} km)`);
+      return c.ok;
+    };
     const rows: object[] = [];
     let dup = 0,
       bad = 0,
@@ -210,12 +375,13 @@ export function useImporters() {
       else haveKey.add([v.id, x.fecha, liters, amount].join('|'));
       const st = state.get(v.id)!;
       const odo = isNaN(x.odo) ? null : Math.round(x.odo);
-      const good = odo !== null && isFuel(x.prod) && okOdo(st.km, st.date, x.fecha, odo);
+      const good = odo !== null && isFuel(x.prod) && validate(v.id, x.pt, st, x.fecha, odo);
       if (odo !== null && !good && isFuel(x.prod)) bad++;
-      if (good && (!st.date || x.fecha > st.date)) {
-        st.km = odo;
-        st.date = x.fecha;
+      if (good && (!st.odoDate || x.fecha >= st.odoDate)) {
+        st.odo = odo;
+        st.odoDate = x.fecha;
         st.changed = true;
+        anchor.set(v.id, { date: x.fecha, km: odo! });
       }
       if (!st.card && x.tarj) {
         st.card = x.tarj.slice(-6);
@@ -242,15 +408,21 @@ export function useImporters() {
     }
     for (const [vid, st] of state) {
       if (!st.changed) continue;
-      const { error } = await sb()
-        .from('vehicles')
-        .update({ km: st.km, km_date: st.date, fuel_card: st.card })
-        .eq('id', vid);
+      // km = último odómetro leído + km reportados por GPS posteriores a esa lectura
+      let km = st.km,
+        kmDate = st.date;
+      if (st.odo !== null && st.odoDate) {
+        const after = trips.filter((t) => t.vehicle_id === vid && t.date > st.odoDate!);
+        km = Math.round(st.odo + after.reduce((a, t) => a + Number(t.km_calc || 0), 0));
+        kmDate = after.reduce((mx, t) => (t.date > mx ? t.date : mx), st.odoDate);
+      }
+      const { error } = await sb().from('vehicles').update({ km, km_date: kmDate, fuel_card: st.card }).eq('id', vid);
       if (error) throw error;
+      if (km !== null && km !== st.prevKm) await recordKmChange(vid, km, st.prevKm);
     }
     await reload('vehicles', 'documents', 'fuel_loads');
     alert(
-      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por inconsistentes (se marcan con ⚠).` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}`
+      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por no coincidir con el GPS:\n${alerts.join('\n')}` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}`
     );
   }
 
@@ -355,5 +527,5 @@ export function useImporters() {
     );
   }
 
-  return { importTrips, importFuel, importKmReport };
+  return { importTrips, importFuel, importKmReport, importGestya };
 }
