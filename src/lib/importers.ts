@@ -143,8 +143,18 @@ export function useImporters() {
     const fresh = list.filter((t) => !existing.has(t.vehicle_id + '|' + t.date));
     const noBase: string[] = [];
     let updated = 0;
-    const byVeh = new Map<string, typeof fresh>();
-    fresh.forEach((t) => byVeh.set(t.vehicle_id, [...(byVeh.get(t.vehicle_id) ?? []), t]));
+    // Se suman TODOS los días posteriores a la última lectura (no solo los nuevos): cada km se cuenta una sola vez
+    // porque km_date marca hasta dónde ya está incluido en el km actual.
+    const inList = new Set(list.map((t) => t.vehicle_id));
+    const kds = [...byPlate.values()].filter((v) => inList.has(v.id) && v.km_date).map((v) => v.km_date!);
+    const minKd = kds.length ? kds.reduce((a, b) => (a < b ? a : b)) : '2000-01-01';
+    const dbT = await sb().from('trips').select('vehicle_id,date,km_calc').gt('date', minKd).limit(10000);
+    if (dbT.error) throw dbT.error;
+    const byVeh = new Map<string, { vehicle_id: string; date: string; km_calc: number }[]>();
+    ((dbT.data ?? []) as { vehicle_id: string; date: string; km_calc: number }[]).forEach((t) => {
+      if (inList.has(t.vehicle_id))
+        byVeh.set(t.vehicle_id, [...(byVeh.get(t.vehicle_id) ?? []), { ...t, km_calc: Number(t.km_calc) || 0 }]);
+    });
     for (const [vid, arr] of byVeh) {
       const v = [...byPlate.values()].find((x) => x.id === vid);
       if (!v) continue;
