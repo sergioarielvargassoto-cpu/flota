@@ -18,8 +18,8 @@ export function lastGpsDate(trips: TripLite[], vid: string): string | null {
   return m;
 }
 
-/** Tolerancia: 80 km fijos + 8 % de lo recorrido (el GPS pierde señal, el tablero redondea). */
-export const tolerance = (gps: number) => Math.max(80, gps * 0.08);
+/** Tolerancia: 100 km fijos o 10 % de lo recorrido, lo que sea mayor (el GPS pierde señal, el tablero redondea). */
+export const tolerance = (gps: number) => Math.max(100, gps * 0.1);
 
 export type Check = { ok: boolean; expected: number; diff: number; gps: number };
 

@@ -134,6 +134,11 @@ export default function VehiculoDetalle() {
           {v.last_service_km !== null
             ? num(v.last_service_km + settings.service_km) + ' km'
             : 'cargar km del último service'}
+          {v.last_service_km !== null && v.km !== null && v.km > v.last_service_km + settings.service_km && (
+            <small className="muted" style={{ display: 'block' }}>
+              Vencido: se da por hecho recién al cargar el service en Mantenimientos.
+            </small>
+          )}
         </div>
         <div>
           <span>Gasto total registrado</span>

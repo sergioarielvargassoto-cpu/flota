@@ -12,6 +12,7 @@ const TABS: [string, string][] = [
   ['/reparaciones', '🔧 Reparaciones'],
   ['/mantenimientos', '🛢 Mantenimientos'],
   ['/recorridos', '📍 Recorridos'],
+  ['/auditoria-km', '🔎 Auditoría km'],
   ['/combustible', '⛽ Combustible'],
   ['/talleres', '🏭 Talleres'],
   ['/ajustes', '⚙ Ajustes'],

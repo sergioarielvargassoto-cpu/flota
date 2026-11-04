@@ -76,7 +76,7 @@ export function VehicleForm({ id, onClose }: { id?: string; onClose: () => void 
       ],
       half: true,
     },
-    { k: 'last_service_km', l: 'Km del último service', t: 'number', half: true },
+    { k: 'last_service_km', l: 'Km del último service (base inicial; los siguientes se cargan en Mantenimientos)', t: 'number', half: true },
     { k: 'fuel_card', l: 'Tarjeta YPF en Ruta (últimos dígitos)', half: true },
     { k: 'chassis', l: 'N° de chasis / motor' },
     { k: 'notes', l: 'Notas', t: 'textarea' },
