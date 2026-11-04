@@ -204,11 +204,22 @@ export default function Informe() {
         {fuelCount === 0 && (
           <b style={{ color: '#7a4b00' }}>⚠ Falta cargar el archivo de combustible (YPF) de este mes: consumo y gasto aparecen vacíos.</b>
         )}{' '}
-        Los {vm.length - gpsCount} vehículos sin GPS se miden por odómetro de las estaciones.
+        Los km de cada vehículo se miden por GPS cuando tiene; si no tiene (o no registró), por el odómetro de las estaciones, interpolado al inicio y fin del mes. Cada vehículo se cuenta una sola vez.
       </div>
 
       <div className="cards">
-        <Kpi label="Km recorridos" value={km0(t.opKm)} sub={<Delta cur={t.opKm} prev={pt.opKm} good="none" />} />
+        <Kpi
+          label="Km recorridos"
+          value={km0(t.opKm)}
+          sub={
+            <>
+              <div className="muted" style={{ fontSize: 11 }}>
+                GPS {km0(t.gpsKm)} + odómetro {km0(t.odoOnlyKm)}
+              </div>
+              <Delta cur={t.opKm} prev={pt.opKm} good="none" />
+            </>
+          }
+        />
         <Kpi label="Litros cargados" value={km0(t.liters)} sub={<Delta cur={t.liters} prev={pt.liters} good="none" />} />
         <Kpi label="Gasto en combustible" value={mon(t.fuelCost)} sub={<Delta cur={t.fuelCost} prev={pt.fuelCost} good="down" />} />
         <Kpi label="Consumo L/100 km" value={f1(t.l100)} sub={<Delta cur={t.l100} prev={pt.l100} good="down" />} />

@@ -6,10 +6,11 @@ import { guard } from '@/lib/util';
 import { pickSheet } from '@/lib/excel';
 import { TRIP_SPEC, useImporters } from '@/lib/importers';
 import { Badge } from '@/components/Badge';
+import { vehicleMonth, totals } from '@/lib/fleetStats';
 import { ImportDialog } from '@/components/ImportDialog';
 
 export default function Recorridos() {
-  const { trips, fuel_loads, vehicles } = useData();
+  const { trips, fuel_loads, vehicles, drivers, repairs, maintenance, infractions } = useData();
   const { importTrips } = useImporters();
   const [rows, setRows] = useState<unknown[][] | null>(null);
   const [tm, setTm] = useState('');
@@ -45,6 +46,10 @@ export default function Recorridos() {
     GL = good.reduce((s, r) => s + r.lit, 0),
     GI = good.reduce((s, r) => s + r.imp, 0);
   const sel = vehicles.find((v) => v.id === tv);
+  // Consumo con el MISMO criterio que el Informe de gestión (tanque a tanque acumulado)
+  const vmMonth = month ? vehicleMonth({ vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions }, month) : [];
+  const l100By = new Map(vmMonth.map((r) => [r.v.id, r.l100]));
+  const fleetL100 = totals(vmMonth.filter((r) => r.hasGps)).l100;
 
   return (
     <>
@@ -91,8 +96,8 @@ export default function Recorridos() {
               <div className="l">Km recorridos (GPS)</div>
             </div>
             <div className="card">
-              <div className="n">{GK ? ((GL / GK) * 100).toFixed(1) : '—'}</div>
-              <div className="l">L/100 km flota (con GPS y carga)</div>
+              <div className="n">{fleetL100 ? fleetL100.toFixed(1) : '—'}</div>
+              <div className="l">L/100 km flota con GPS (tanque a tanque)</div>
             </div>
             <div className="card">
               <div className="n">{GK ? money(Math.round(GI / GK)) : '—'}</div>
@@ -133,7 +138,7 @@ export default function Recorridos() {
                       <td>{num(Math.round(r.kr))}</td>
                       <td>{r.vmax || '—'}</td>
                       <td>{num(Math.round(r.lit))}</td>
-                      <td>{ok ? ((r.lit / r.km) * 100).toFixed(1) : '—'}</td>
+                      <td>{l100By.get(r.v.id) ? (l100By.get(r.v.id) as number).toFixed(1) : '—'}</td>
                       <td>{ok ? money(Math.round(r.imp / r.km)) : '—'}</td>
                       <td>
                         {!r.has ? (
@@ -149,9 +154,10 @@ export default function Recorridos() {
             </table>
           </div>
           <p className="muted">
-            L/100 km = litros cargados en el mes (YPF) ÷ km del GPS (Gestya). Es una referencia: el tanque no
-            necesariamente se llena y se vacía dentro del mes. Un vehículo con carga de combustible pero 0 km en el GPS
-            suele indicar un equipo GPS sin señal o desconectado.
+            Esta pantalla muestra solo los vehículos con GPS (Gestya). El total de la flota, que suma además los vehículos
+            sin GPS por odómetro, está en <b>Informe de gestión</b>. L/100 km = método tanque a tanque (litros de las
+            cargas del mes sin la primera ÷ km del odómetro entre cargas), igual que en el Informe. Un vehículo con
+            carga de combustible pero 0 km en el GPS suele indicar un equipo GPS sin señal o desconectado.
           </p>
           {sel ? (
             <>

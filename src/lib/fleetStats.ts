@@ -68,8 +68,30 @@ function acceptedLoads(d: Data, vid: string) {
     .sort((a, b) => a.date.localeCompare(b.date) || (a.km as number) - (b.km as number));
 }
 
+/** Odómetro interpolado (lineal por fecha) entre dos lecturas aceptadas; null si no hay lecturas a ambos lados. */
+function odoAt(acc: Fuel[], date: string): number | null {
+  let prev: Fuel | null = null,
+    next: Fuel | null = null;
+  for (const f of acc) {
+    if (f.date <= date) prev = f;
+    else {
+      next = f;
+      break;
+    }
+  }
+  if (!prev) return null;
+  if (prev.date === date) return prev.km as number;
+  if (!next) return null;
+  const span = daysBetween(prev.date, next.date);
+  if (span <= 0) return null;
+  const frac = daysBetween(prev.date, date) / span;
+  return (prev.km as number) + ((next.km as number) - (prev.km as number)) * frac;
+}
+
 export type VehicleMonth = {
   v: Vehicle;
+  kmSource: 'gps' | 'odometro' | 'ninguno'; // de dónde sale el km operativo
+
   prov: string;
   driverName: string;
   hasGps: boolean;
@@ -78,7 +100,8 @@ export type VehicleMonth = {
   fills: number;
   liters: number;
   fuelCost: number;
-  odoKm: number | null; // km entre la última carga anterior al mes y la última del mes
+  odoKm: number | null; // km entre la última carga anterior al mes y la última del mes (ventana de consumo)
+  odoCalKm: number | null; // km del mes calendario por odómetro (interpolado en los bordes; sin solapes entre meses)
   winLiters: number | null;
   l100: number | null;
   l100Ref: number | null; // consumo de referencia (mes anterior propio o mediana de pares)
@@ -129,18 +152,28 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
         if (hasGps) gpsWinKm = gpsBetween(d.trips, v.id, base.date, last.date);
       }
     }
+    // Km del mes calendario por odómetro: lectura interpolada al inicio y al fin del mes. Mes siguiente = mismo borde => sin doble conteo.
+    let odoCalKm: number | null = null;
+    if (acc.length >= 2) {
+      const S = odoAt(acc, from) ?? (inMonth.length ? (inMonth[0].km as number) : null);
+      const E = odoAt(acc, to) ?? (inMonth.length ? (inMonth[inMonth.length - 1].km as number) : null);
+      if (S !== null && E !== null && E > S) odoCalKm = E - S;
+    }
     const l100 = odoKm && winLiters ? (winLiters / odoKm) * 100 : null;
     const maxLoad = Math.max(0, ...d.fuel_loads.filter((f) => f.vehicle_id === v.id && isFuelProduct(f.product)).map((f) => Number(f.liters) || 0));
     const tankCap = Math.max(maxLoad, 40);
     // Si el GPS casi no registró (equipo sin señal / apagado) frente al odómetro, se usa el odómetro
     const gpsDead = hasGps && gpsWinKm !== null && odoKm !== null && gpsWinKm < 0.2 * odoKm;
-    const opKm = hasGps && !gpsDead ? gpsKm : odoKm ?? gpsKm;
+    const opKm = hasGps && !gpsDead ? gpsKm : (odoCalKm ?? odoKm ?? gpsKm);
+    const kmSource: 'gps' | 'odometro' | 'ninguno' = opKm === null ? 'ninguno' : hasGps && !gpsDead ? 'gps' : 'odometro';
     const maintCost = sum(d.maintenance.filter((m) => m.vehicle_id === v.id && m.date >= from && m.date < to).map((m) => Number(m.cost) || 0));
     const repairCost = sum(d.repairs.filter((r) => r.vehicle_id === v.id && r.date >= from && r.date < to).map((r) => Number(r.cost) || 0));
     const fuelCost = sum(fl.map((f) => Number(f.amount) || 0));
     const total = fuelCost + maintCost + repairCost;
     rows.push({
       v,
+      kmSource,
+      odoCalKm,
       prov: v.provincia || 'Sin designar',
       driverName: v.driver_id ? (drMap.get(v.driver_id) ?? '—') : '—',
       hasGps,
@@ -351,6 +384,8 @@ export function provinceMonth(rows: VehicleMonth[]): ProvMonth[] {
 
 export type FleetTotals = {
   opKm: number;
+  gpsKm: number; // parte medida por GPS
+  odoOnlyKm: number; // parte medida por odómetro (vehículos sin GPS o con GPS que no registró)
   liters: number;
   fuelCost: number;
   fills: number;
@@ -370,6 +405,8 @@ export function totals(rows: VehicleMonth[]): FleetTotals {
   const totalCost = fuelCost + upkeep;
   return {
     opKm,
+    gpsKm: sum(rows.filter((r) => r.kmSource === 'gps').map((r) => r.opKm ?? 0)),
+    odoOnlyKm: sum(rows.filter((r) => r.kmSource === 'odometro').map((r) => r.opKm ?? 0)),
     liters: sum(rows.map((r) => r.liters)),
     fuelCost,
     fills: sum(rows.map((r) => r.fills)),
