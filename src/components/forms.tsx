@@ -14,6 +14,7 @@ import {
 import { FormModal, type Field } from './FormModal';
 import { uploadFiles } from './Attachments';
 import { recordKmChange, recordRepairChange, recordMaintenanceChange } from '@/lib/history';
+import { okOdo } from '@/lib/util';
 
 /** Hook con la lógica común: actualizar el km del vehículo cuando un registro trae un km mayor. */
 function useBump() {
@@ -22,9 +23,20 @@ function useBump() {
     const v = vehicles.find((x) => x.id === vehicleId);
     if (!v || km === null) return;
     const patch: Partial<Vehicle> = {};
-    if (v.km === null || km > v.km) {
-      patch.km = km;
-      patch.km_date = date;
+    // El km del vehículo solo avanza con registros NO anteriores a su última lectura (si no, km_date retrocedería y el GPS
+    // se volvería a sumar), y un salto fuera de lo razonable pide confirmación (evita tipeos como 500000).
+    const isNewer = !v.km_date || date >= v.km_date;
+    if (isNewer && (v.km === null || km > v.km)) {
+      const sane = v.km === null || !v.km_date || okOdo(v.km, v.km_date, date, km);
+      if (
+        sane ||
+        confirm(
+          `El km ingresado (${km.toLocaleString('es-AR')}) es mucho mayor al actual de ${v.plate} (${v.km?.toLocaleString('es-AR')}). ¿Es correcto? Si no, cancelá y revisalo.`
+        )
+      ) {
+        patch.km = km;
+        patch.km_date = date;
+      }
     }
     if (service && (v.last_service_km === null || km > v.last_service_km)) patch.last_service_km = km;
     if (Object.keys(patch).length) await update('vehicles', vehicleId, patch);
@@ -403,7 +415,7 @@ export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
           </p>
           <p style={{ margin: '0' }}>
             <b>Última actualización:</b>{' '}
-            {vehicle.km_date ? new Date(vehicle.km_date).toLocaleDateString('es-AR') : 'Nunca'}
+            {vehicle.km_date ? new Date(vehicle.km_date + 'T00:00:00').toLocaleDateString('es-AR') : 'Nunca'}
           </p>
         </div>
 
@@ -412,7 +424,12 @@ export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
             e.preventDefault();
             if (newKm === '' || isNaN(Number(newKm))) return alert('Ingresa un número válido');
             const num = Number(newKm);
-            if (vehicle.km !== null && num < vehicle.km) return alert('El nuevo km no puede ser menor al anterior');
+            if (vehicle.km !== null && num < vehicle.km) {
+              // Permitido (p. ej. un km inflado por GPS), pero con confirmación explícita
+              if (!confirm(`El nuevo km (${num.toLocaleString('es-AR')}) es MENOR al actual (${vehicle.km.toLocaleString('es-AR')}). ¿Confirmás que el tablero marca ese valor?`)) return;
+            } else if (vehicle.km !== null && num - vehicle.km > 5000) {
+              if (!confirm(`El nuevo km sube ${(num - vehicle.km).toLocaleString('es-AR')} km de una vez. ¿Confirmás que el tablero marca ${num.toLocaleString('es-AR')}?`)) return;
+            }
             setBusy(true);
             try {
               await update('vehicles', vehicle.id, { km: num, km_date: todayStr() });

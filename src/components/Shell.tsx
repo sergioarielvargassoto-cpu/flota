@@ -27,9 +27,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <h1>
           🚚 Control de Flota <span className="muted">{settings.company ? '· ' + settings.company : ''}</span>
         </h1>
-        <nav>
+        <nav aria-label="Principal">
           {TABS.map(([href, label]) => (
-            <Link key={href} href={href} className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'on' : ''}>
+            <Link
+              key={href}
+              href={href}
+              className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'on' : ''}
+              aria-current={(href === '/' ? path === '/' : path.startsWith(href)) ? 'page' : undefined}
+            >
               {label}
             </Link>
           ))}

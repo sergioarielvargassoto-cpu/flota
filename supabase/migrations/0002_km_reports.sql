@@ -32,7 +32,8 @@ CREATE INDEX IF NOT EXISTS km_reports_branch_idx ON public.km_reports(branch);
 -- Agregar RLS si no está activo
 ALTER TABLE public.km_reports ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "km_reports_solo_logueados"
+DROP POLICY IF EXISTS "km_reports_solo_logueados" ON public.km_reports;
+CREATE POLICY "km_reports_solo_logueados"
 ON public.km_reports FOR ALL
 TO authenticated
 USING (true)

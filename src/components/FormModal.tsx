@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AttachmentList, type ParentKind } from './Attachments';
 
 export type Field = {
@@ -38,6 +38,11 @@ export function FormModal({
   const [busy, setBusy] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<string | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, onClose]);
   const set = (k: string, v: string) => {
     setVals((p) => ({ ...p, [k]: v }));
     if (errorField === k) setFieldError(null);
@@ -116,8 +121,8 @@ export function FormModal({
 
   return (
     <div className="ov">
-      <div className="md">
-        <h3>{title}</h3>
+      <div className="md" role="dialog" aria-modal="true" aria-labelledby="fm-title">
+        <h3 id="fm-title">{title}</h3>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -150,7 +155,9 @@ export function FormModal({
           }}
         >
           {fieldError && errorField !== '_form' && (
-            <div style={{ color: 'var(--r)', fontSize: '12px', marginBottom: '12px' }}>⚠ {fieldError}</div>
+            <div role="alert" style={{ color: 'var(--r)', fontSize: '12px', marginBottom: '12px' }}>
+              ⚠ {fieldError}
+            </div>
           )}
           {rows.map((r, i) => {
             const cells = r.map((f) => (

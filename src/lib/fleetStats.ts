@@ -148,7 +148,11 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
       const km = (last.km as number) - (base.km as number);
       if (km > 0 && after.length) {
         odoKm = km;
-        winLiters = sum(after.map((f) => Number(f.liters) || 0));
+        // Litros de la ventana: las cargas aceptadas + las de odómetro descartado dentro del tramo (el combustible se cargó igual)
+        const rejectedIn = d.fuel_loads.filter(
+          (f) => f.vehicle_id === v.id && isFuelProduct(f.product) && (f.km === null || f.km === undefined) && f.date > base.date && f.date <= last.date
+        );
+        winLiters = sum(after.map((f) => Number(f.liters) || 0)) + sum(rejectedIn.map((f) => Number(f.liters) || 0));
         if (hasGps) gpsWinKm = gpsBetween(d.trips, v.id, base.date, last.date);
       }
     }
@@ -168,7 +172,8 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
     const kmSource: 'gps' | 'odometro' | 'ninguno' = opKm === null ? 'ninguno' : hasGps && !gpsDead ? 'gps' : 'odometro';
     const maintCost = sum(d.maintenance.filter((m) => m.vehicle_id === v.id && m.date >= from && m.date < to).map((m) => Number(m.cost) || 0));
     const repairCost = sum(d.repairs.filter((r) => r.vehicle_id === v.id && r.date >= from && r.date < to).map((r) => Number(r.cost) || 0));
-    const fuelCost = sum(fl.map((f) => Number(f.amount) || 0));
+    // Gasto = combustible + AdBlue del mes (los litros y la cantidad de cargas cuentan solo combustible)
+    const fuelCost = sum(d.fuel_loads.filter((f) => f.vehicle_id === v.id && f.date >= from && f.date < to).map((f) => Number(f.amount) || 0));
     const total = fuelCost + maintCost + repairCost;
     rows.push({
       v,
@@ -305,7 +310,17 @@ export function driverMonth(d: Data, key: string): DriverMonth[] {
       if (dk <= 0 || dk > 1500) continue;
       const r = get(cur.driver_name ?? '');
       r.km += dk;
-      r.kmLiters += Number(cur.liters) || 0;
+      // Litros del tramo: la carga que lo cierra + cargas con odómetro descartado entre medio (mismo vehículo)
+      const between = d.fuel_loads.filter(
+        (f) =>
+          f.vehicle_id === v.id &&
+          isFuelProduct(f.product) &&
+          f.id !== cur.id &&
+          (f.km === null || f.km === undefined) &&
+          f.date > pr.date &&
+          f.date <= cur.date
+      );
+      r.kmLiters += (Number(cur.liters) || 0) + sum(between.map((f) => Number(f.liters) || 0));
     }
   }
   const fin = d.infractions.filter((i) => i.date >= from && i.date < to && i.status !== 'Anulada');
@@ -559,7 +574,7 @@ export function insights(
   drv: DriverMonth[],
   tot: FleetTotals,
   prevTot: FleetTotals,
-  extras: { servicesOverdue: number; docsOverdue: number; finesLoaded: number; key: string }
+  extras: { servicesOverdue: number; docsOverdue: number; finesLoaded: number; key: string; partial?: boolean }
 ): Insight[] {
   const out: Insight[] = [];
   const pc = (a: number | null, b: number | null) => (a !== null && b ? ((a - b) / b) * 100 : null);
@@ -623,7 +638,7 @@ export function insights(
     );
   // Baja utilización
   cur
-    .filter((r) => r.opKm !== null && r.opKm < 300 && (r.hasGps || r.fills > 0))
+    .filter((r) => !extras.partial && r.opKm !== null && r.opKm < 300 && (r.hasGps || r.fills > 0))
     .forEach((r) =>
       out.push({
         sev: 'info',
@@ -653,7 +668,7 @@ export function insights(
       detail: 'Combustible + mantenimiento + reparaciones del mes dividido los km. Priorizar su revisión.',
     });
   // Evolución del costo por km de la flota
-  const dpk = pc(tot.fuelPerKm, prevTot.fuelPerKm);
+  const dpk = extras.partial ? null : pc(tot.fuelPerKm, prevTot.fuelPerKm);
   if (dpk !== null && dpk > 10)
     out.push({ sev: 'warning', area: 'Costos', title: `El gasto de combustible por km subió ${f1(dpk)} % contra el mes anterior`, detail: 'Puede deberse a precio del combustible, mayor consumo o menos km por carga. Ver la tabla por provincia y por vehículo.' });
   else if (dpk !== null && dpk < -10)

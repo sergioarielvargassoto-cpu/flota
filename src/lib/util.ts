@@ -25,6 +25,7 @@ export function pNum(v: unknown): number {
   if (typeof v === 'number') return v;
   const raw = String(v ?? '').replace(/[^\d.,\-]/g, '');
   if (!raw) return NaN;
+  if (/^-?0\.\d+$/.test(raw)) return parseFloat(raw); // "0.125" es decimal, no 125 mil
   if (raw.includes(',')) return parseFloat(raw.replace(/\./g, '').replace(',', '.'));
   if (/^-?\d{1,3}(\.\d{3})+$/.test(raw)) return parseFloat(raw.replace(/\./g, ''));
   return parseFloat(raw);
@@ -34,7 +35,7 @@ export function pNum(v: unknown): number {
 export function pDate(v: unknown): string {
   if (v === '' || v === null || v === undefined) return '';
   if (typeof v === 'number' && v > 20000 && v < 80000)
-    return new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 864e5).toISOString().slice(0, 10);
+    return new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 864e5).toISOString().slice(0, 10);
   const s = String(v).trim();
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;

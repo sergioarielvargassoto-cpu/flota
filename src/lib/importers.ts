@@ -2,10 +2,10 @@
 import { useData } from './data';
 import { sb } from './supabase';
 import { recordKmChange } from './history';
-import { checkReading, lastGpsDate, type TripLite } from './kmAudit';
+import { checkReading, gpsBetween, lastGpsDate, tolerance, type TripLite } from './kmAudit';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
-import { DOC_VEHICLE_DEFAULT, isFuel, nrm, okOdo, pDate, pNum } from './util';
+import { DOC_VEHICLE_DEFAULT, isFuel, nrm, okOdo, pDate, pNum, todayStr } from './util';
 
 export const TRIP_SPEC: ColSpec[] = [
   { k: 'v', l: 'Vehículo (con la patente entre paréntesis)', re: /^veh[ií]culo$|^patente|^dominio/ },
@@ -37,6 +37,7 @@ export const KM_SPEC: ColSpec[] = [
 ];
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const daysBetween = (a: string, b: string) => Math.round((+new Date(b + 'T00:00:00') - +new Date(a + 'T00:00:00')) / 864e5);
 const title = (s: string) => s.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 const patOf = (s: unknown) => {
   const m = String(s ?? '').match(/\(([^)]+)\)/);
@@ -53,8 +54,22 @@ const brandOf = (s: unknown) => {
   return /^M BENZ/.test(t) ? 'Mercedes-Benz' : t.charAt(0) + t.slice(1).toLowerCase();
 };
 
+/** Supabase devuelve como máximo 1000 filas por consulta (aunque se pida más con limit): se pagina para no truncar en silencio. */
+async function selectAll<T>(
+  make: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await make(from, from + 999);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
 export function useImporters() {
-  const { vehicles, trips, fuel_loads, reload } = useData();
+  const { vehicles, trips, fuel_loads, km_history, reload } = useData();
 
   /** Devuelve patente→vehículo; ofrece crear los vehículos que no existan todavía. */
   async function ensureVehicles(found: Map<string, string>): Promise<Map<string, Vehicle>> {
@@ -148,10 +163,11 @@ export function useImporters() {
     const inList = new Set(list.map((t) => t.vehicle_id));
     const kds = [...byPlate.values()].filter((v) => inList.has(v.id) && v.km_date).map((v) => v.km_date!);
     const minKd = kds.length ? kds.reduce((a, b) => (a < b ? a : b)) : '2000-01-01';
-    const dbT = await sb().from('trips').select('vehicle_id,date,km_calc').gt('date', minKd).limit(10000);
-    if (dbT.error) throw dbT.error;
+    const dbT = await selectAll<{ vehicle_id: string; date: string; km_calc: number }>((a, b) =>
+      sb().from('trips').select('vehicle_id,date,km_calc').gt('date', minKd).order('id').range(a, b)
+    );
     const byVeh = new Map<string, { vehicle_id: string; date: string; km_calc: number }[]>();
-    ((dbT.data ?? []) as { vehicle_id: string; date: string; km_calc: number }[]).forEach((t) => {
+    dbT.forEach((t) => {
       if (inList.has(t.vehicle_id))
         byVeh.set(t.vehicle_id, [...(byVeh.get(t.vehicle_id) ?? []), { ...t, km_calc: Number(t.km_calc) || 0 }]);
     });
@@ -212,18 +228,14 @@ export function useImporters() {
       const pad = String(mo).padStart(2, '0');
       const from = `${y}-${pad}-01`;
       const to = `${mo === 12 ? y + 1 : y}-${String(mo === 12 ? 1 : mo + 1).padStart(2, '0')}-01`;
-      const { data: tr, error } = await sb()
-        .from('trips')
-        .select('vehicle_id,date,km_calc')
-        .gte('date', from)
-        .lt('date', to)
-        .limit(5000);
-      if (error) throw error;
-      allTrips.push(...((tr ?? []) as TripLite[]));
+      const tr = await selectAll<TripLite>((a, b) =>
+        sb().from('trips').select('vehicle_id,date,km_calc').gte('date', from).lt('date', to).order('id').range(a, b)
+      );
+      allTrips.push(...tr);
       if (from < minD) minD = from;
       if (to > maxD) maxD = to;
       const byV = new Map<string, { total: number; day: Record<string, number> }>();
-      for (const t of (tr ?? []) as { vehicle_id: string; date: string; km_calc: number }[]) {
+      for (const t of tr as { vehicle_id: string; date: string; km_calc: number }[]) {
         if (!(t.km_calc > 0)) continue;
         const e = byV.get(t.vehicle_id) ?? { total: 0, day: {} };
         e.total += Number(t.km_calc);
@@ -244,37 +256,57 @@ export function useImporters() {
         km_previous: prevMap.get(vid) || null,
         km_by_day: e.day,
         branch: vehById.get(vid)?.branch || 'Corrientes',
-        imported_from: 'Gestya ' + new Date().toISOString().slice(0, 10),
+        imported_from: 'Gestya ' + todayStr(),
       }));
+      // Reemplazo con red de seguridad: la tabla tiene UNIQUE(vehicle_id, month, year), así que se borra el mes y se
+      // inserta el nuevo; si el insert falla, se restauran las filas anteriores para no perder el reporte.
+      const oldRows = await selectAll<Record<string, unknown>>((a, b) =>
+        sb().from('km_reports').select('*').eq('year', y).eq('month', mo).order('id').range(a, b)
+      );
       const del = await sb().from('km_reports').delete().eq('year', y).eq('month', mo);
       if (del.error) throw del.error;
-      for (let i = 0; i < rows.length; i += 200) {
-        const { error: e2 } = await sb().from('km_reports').insert(rows.slice(i, i + 200));
-        if (e2) throw e2;
+      try {
+        for (let i = 0; i < rows.length; i += 200) {
+          const { error: e2 } = await sb().from('km_reports').insert(rows.slice(i, i + 200));
+          if (e2) throw e2;
+        }
+      } catch (ex) {
+        await sb().from('km_reports').delete().eq('year', y).eq('month', mo);
+        for (let i = 0; i < oldRows.length; i += 200) await sb().from('km_reports').insert(oldRows.slice(i, i + 200));
+        throw ex;
       }
       summary.push(`${pad}/${y}: ${rows.length} vehículos`);
     }
     // Auditoría: lecturas de odómetro declaradas en estaciones vs. km del GPS en cada tramo
     const flags: string[] = [];
-    const fl = await sb()
-      .from('fuel_loads')
-      .select('vehicle_id,date,km_raw')
-      .not('km_raw', 'is', null)
-      .gte('date', minD)
-      .lt('date', maxD)
-      .order('date')
-      .limit(5000);
+    const fl = await selectAll<{ vehicle_id: string; date: string; km: number }>((a, b) =>
+      sb().from('fuel_loads').select('vehicle_id,date,km').not('km', 'is', null).gte('date', minD).lt('date', maxD).order('id').range(a, b)
+    ).then(
+      (data) => ({ data, error: null }),
+      () => ({ data: [] as { vehicle_id: string; date: string; km: number }[], error: true })
+    );
     if (!fl.error) {
       const byVeh = new Map<string, { date: string; km: number }[]>();
-      (fl.data as { vehicle_id: string; date: string; km_raw: number }[]).forEach((r) =>
-        byVeh.set(r.vehicle_id, [...(byVeh.get(r.vehicle_id) ?? []), { date: r.date, km: r.km_raw }])
+      fl.data.sort((x, y) => x.date.localeCompare(y.date));
+      fl.data.forEach((r) =>
+        byVeh.set(r.vehicle_id, [...(byVeh.get(r.vehicle_id) ?? []), { date: r.date, km: r.km }])
       );
       for (const [vid, arr] of byVeh) {
+        // Solo se audita contra GPS donde hay GPS: el vehículo debe tener recorridos cubriendo el tramo
+        const vt = allTrips.filter((t) => t.vehicle_id === vid);
+        if (!vt.length) continue;
+        const first = vt.reduce((m, t) => (t.date < m ? t.date : m), vt[0].date);
+        const last = vt.reduce((m, t) => (t.date > m ? t.date : m), vt[0].date);
+        const daily = Math.max(50, vt.reduce((s2, t) => s2 + (Number(t.km_calc) || 0), 0) / vt.length);
         let a = arr[0];
         for (const cur of arr.slice(1)) {
           if (cur.date === a.date) continue;
+          if (a.date < first || cur.date > last) {
+            a = cur;
+            continue;
+          }
           const c = checkReading(allTrips, vid, a, cur);
-          if (c.ok) a = cur;
+          if (c.ok || Math.abs(c.diff) <= tolerance(c.gps) + daily) a = cur;
           else if (flags.length < 15)
             flags.push(
               `${vehById.get(vid)?.plate ?? vid} ${cur.date}: declaró ${cur.km.toLocaleString('es-AR')}, GPS indica ~${c.expected.toLocaleString('es-AR')} (dif ${c.diff > 0 ? '+' : ''}${c.diff} km)`
@@ -331,12 +363,20 @@ export function useImporters() {
       odoDate: string | null;
       odo: number | null;
     };
-    // Ancla = última lectura de tablero aceptada (o, si no hay, el km actual del vehículo con su fecha).
+    // Ancla = última lectura de TABLERO confiable: carga de estación aceptada o km cargado a mano (la más reciente).
+    // El km "calculado con GPS" no es una lectura: nunca se usa como ancla si hay una lectura real.
     const anchor = new Map<string, { date: string; km: number }>();
     fuel_loads.forEach((f) => {
       if (f.km === null || f.km === undefined) return;
       const a = anchor.get(f.vehicle_id);
-      if (!a || f.date > a.date) anchor.set(f.vehicle_id, { date: f.date, km: f.km });
+      if (!a || f.date > a.date || (f.date === a.date && f.km > a.km)) anchor.set(f.vehicle_id, { date: f.date, km: f.km });
+    });
+    km_history.forEach((h) => {
+      const src = h.changed_by.includes(':') ? h.changed_by.slice(0, h.changed_by.indexOf(':')) : 'manual';
+      if (src === 'gps' || src === 'combustible') return;
+      const date = new Date(h.recorded_at).toLocaleDateString('en-CA');
+      const a = anchor.get(h.vehicle_id);
+      if (!a || date >= a.date) anchor.set(h.vehicle_id, { date, km: h.km });
     });
     const state = new Map<string, St>();
     byPlate.forEach((v) => {
@@ -353,13 +393,24 @@ export function useImporters() {
       });
     });
     const alerts: string[] = [];
-    /** Valida una lectura nueva: contra el GPS si hay datos hasta esa fecha; si no, con el tope de plausibilidad. */
-    const validate = (vid: string, plate: string, st: St, fecha: string, odo: number) => {
+    /**
+     * Valida una lectura nueva contra la última lectura confiable (ancla) y el GPS:
+     *  - lectura posterior al ancla: ancla + GPS del tramo (si hay GPS hasta esa fecha), o tope de plausibilidad;
+     *  - lectura anterior al ancla (remitos tardíos, archivos viejos): ancla − GPS del tramo, o plausibilidad hacia atrás.
+     */
+    const validate = (vid: string, plate: string, fecha: string, odo: number) => {
       const a = anchor.get(vid);
       if (!a) return true; // primera lectura del vehículo: se acepta y queda como ancla
-      if (fecha <= a.date) return okOdo(st.km, st.date, fecha, odo) || st.km === null;
       const lg = lastGpsDate(trips, vid);
-      if (!lg || lg < fecha) return okOdo(st.km, st.date, fecha, odo); // GPS aún sin cargar: se audita al subir Gestya
+      if (fecha <= a.date) {
+        const dd = daysBetween(fecha, a.date);
+        if (lg && lg >= a.date) {
+          const gps = gpsBetween(trips, vid, fecha, a.date);
+          return Math.abs(odo - (a.km - gps)) <= tolerance(gps) + 400;
+        }
+        return odo > 0 && odo <= a.km + 300 && odo >= a.km - (dd * 700 + 1000);
+      }
+      if (!lg || lg < fecha) return okOdo(a.km, a.date, fecha, odo); // GPS aún sin cargar: se audita al subir Gestya
       const c = checkReading(trips, vid, a, { date: fecha, km: odo });
       if (!c.ok && alerts.length < 12)
         alerts.push(`${plate} ${fecha}: declaró ${odo.toLocaleString('es-AR')}, GPS indica ~${c.expected.toLocaleString('es-AR')} (dif ${c.diff > 0 ? '+' : ''}${c.diff} km)`);
@@ -385,7 +436,7 @@ export function useImporters() {
       else haveKey.add([v.id, x.fecha, liters, amount].join('|'));
       const st = state.get(v.id)!;
       const odo = isNaN(x.odo) ? null : Math.round(x.odo);
-      const good = odo !== null && isFuel(x.prod) && validate(v.id, x.pt, st, x.fecha, odo);
+      const good = odo !== null && isFuel(x.prod) && validate(v.id, x.pt, x.fecha, odo);
       if (odo !== null && !good && isFuel(x.prod)) bad++;
       if (good && (!st.odoDate || x.fecha >= st.odoDate)) {
         st.odo = odo;
@@ -436,106 +487,5 @@ export function useImporters() {
     );
   }
 
-  async function importKmReport(
-    data: unknown[][],
-    m: Record<string, number>,
-    month: number,
-    year: number,
-    fileName: string
-  ) {
-    // Detectar si es formato Gestya (patente en paréntesis) o simple
-    const isGestya = data.some((r) => String(r[m.v] ?? '').includes('('));
-
-    const parsed = data
-      .map((r) => {
-        const vehicleStr = String(r[m.v] ?? '').trim();
-        const pt = isGestya ? patOf(vehicleStr) : nrm(vehicleStr);
-        const brand = isGestya ? brandOf(vehicleStr) : '';
-        const fecha = pDate(r[m.d]);
-        const km = pNum(r[m.c]);
-        return { pt, brand, fecha, km: isNaN(km) ? 0 : Math.round(km * 100) / 100 };
-      })
-      .filter((x) => x.pt && x.km > 0);
-
-    if (!parsed.length) return alert('No encontré filas con datos válidos (patente y km > 0).');
-
-    // Validar que todas las fechas sean del mes elegido
-    const outOfRange = parsed.filter((x) => {
-      const [y, m] = x.fecha.split('-').map(Number);
-      return y !== year || m !== month;
-    });
-    if (outOfRange.length) {
-      const oos = outOfRange.map((x) => `${x.pt}: ${x.fecha}`).slice(0, 5);
-      if (
-        !confirm(
-          `${outOfRange.length} filas están fuera del período ${year}-${String(month).padStart(2, '0')}:\n${oos.join('\n')}\n\n¿Continuar omitiendo estas filas?`
-        )
-      )
-        return;
-    }
-
-    const filteredParsed = parsed.filter((x) => {
-      const [y, m] = x.fecha.split('-').map(Number);
-      return y === year && m === month;
-    });
-
-    const byPlate = await ensureVehicles(new Map(filteredParsed.map((x) => [x.pt, x.brand])));
-
-    // Agrupar por vehículo y calcular totales + desglose por día
-    const byVid = new Map<string, { v: Vehicle; km_total: number; km_by_day: Record<string, number> }>();
-    for (const x of filteredParsed) {
-      const v = byPlate.get(x.pt);
-      if (!v) continue;
-      if (!byVid.has(v.id)) byVid.set(v.id, { v, km_total: 0, km_by_day: {} });
-      const entry = byVid.get(v.id)!;
-      entry.km_total += x.km;
-      entry.km_by_day[x.fecha] = (entry.km_by_day[x.fecha] ?? 0) + x.km;
-    }
-
-    // Buscar km del mes anterior para calcular variación
-    const kmPrevMonth = await sb()
-      .from('km_reports')
-      .select('vehicle_id, km_total')
-      .eq('year', month === 1 ? year - 1 : year)
-      .eq('month', month === 1 ? 12 : month - 1);
-
-    const prevMap = new Map((kmPrevMonth.data ?? []).map((r: any) => [r.vehicle_id, r.km_total]));
-
-    // Verificar si el mes ya existe
-    const existing = await sb().from('km_reports').select('vehicle_id').eq('year', year).eq('month', month);
-
-    if ((existing.data ?? []).length > 0) {
-      const replace = confirm(
-        `Ya existe reporte para ${year}-${String(month).padStart(2, '0')}.\n\n¿Reemplazar datos?`
-      );
-      if (!replace) return;
-      await sb().from('km_reports').delete().eq('year', year).eq('month', month);
-    }
-
-    // Insertar registros
-    const rows = [...byVid.entries()].map(([vid, { km_total, km_by_day }]) => ({
-      vehicle_id: vid,
-      month,
-      year,
-      km_total,
-      km_previous: prevMap.get(vid) || null,
-      km_by_day,
-      branch: byVid.get(vid)?.v.branch || 'Corrientes',
-      imported_from: fileName,
-    }));
-
-    for (let i = 0; i < rows.length; i += 200) {
-      const { error } = await sb()
-        .from('km_reports')
-        .insert(rows.slice(i, i + 200));
-      if (error) throw error;
-    }
-
-    await reload('km_reports', 'vehicles');
-    alert(
-      `✅ ${rows.length} vehículos importados para ${year}-${String(month).padStart(2, '0')}.\n${outOfRange.length > 0 ? `(${outOfRange.length} filas omitidas por fecha)` : ''}`
-    );
-  }
-
-  return { importTrips, importFuel, importKmReport, importGestya };
+  return { importTrips, importFuel, importGestya };
 }

@@ -354,14 +354,91 @@ button.b3 {
   margin-bottom: 14px;
 }
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
   header,
+  .bar select,
   .bar button,
-  .btns {
-    display: none;
+  .btns,
+  .no-print {
+    display: none !important;
   }
   body {
     background: #fff;
     color: #000;
+  }
+  .tw {
+    overflow: visible !important;
+  }
+  table {
+    font-size: 10px;
+  }
+  th,
+  td {
+    padding: 4px 6px;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr,
+  .card {
+    break-inside: avoid;
+  }
+  section h3 {
+    break-after: avoid;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* Foco visible para teclado (accesibilidad) */
+:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+button,
+a,
+select,
+input {
+  touch-action: manipulation;
+}
+tr.cl:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: -2px;
+}
+
+/* Celular: menú con scroll horizontal y modales de una columna */
+@media (max-width: 700px) {
+  header {
+    position: static;
+  }
+  header nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  header nav a {
+    padding: 12px 14px;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 520px) {
+  .row2 {
+    grid-template-columns: 1fr;
+  }
+}
+.ov {
+  overscroll-behavior: contain;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
   }
 }
 
@@ -418,8 +495,9 @@ header nav a.on {
   margin-bottom: 16px;
 }
 .err {
-  background: #4a1d1d;
-  color: var(--r);
+  background: #fef2f2;
+  color: #991b1b;
+  border-left: 4px solid #ef4444;
   padding: 10px 14px;
   border-radius: 10px;
   margin: 10px 0;

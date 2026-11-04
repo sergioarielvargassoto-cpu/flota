@@ -131,7 +131,10 @@ export default function Informe() {
     const invalid = invalidReadings(data, from, to);
     const bias = gpsBias(vm);
     const finesLoaded = infractions.filter((i) => i.date >= from && i.date < to).length;
-    const ins = insights(vm, pm, dm, t, pt, { servicesOverdue, docsOverdue, finesLoaded, key });
+    const lastGpsM = trips.filter((tr) => tr.date >= from && tr.date < to).reduce<string>((m, tr) => (tr.date > m ? tr.date : m), '');
+    const monthEnd = new Date(new Date(to + 'T00:00:00').getTime() - 864e5).toLocaleDateString('en-CA');
+    const partial = key === new Date().toLocaleDateString('en-CA').slice(0, 7) || (!!lastGpsM && lastGpsM < new Date(new Date(monthEnd + 'T00:00:00').getTime() - 2 * 864e5).toLocaleDateString('en-CA'));
+    const ins = insights(vm, pm, dm, t, pt, { servicesOverdue, docsOverdue, finesLoaded, key, partial });
     // Tendencia (hasta 6 meses con datos)
     const trend = months
       .filter((m) => m <= key)
@@ -145,11 +148,19 @@ export default function Informe() {
     const lastFuel = fuel_loads.filter((f) => f.date >= from && f.date < to).reduce<string>((m, f) => (f.date > m ? f.date : m), '');
     const lastGps = trips.filter((tr) => tr.date >= from && tr.date < to).reduce<string>((m, tr) => (tr.date > m ? tr.date : m), '');
     const fuelCount = fuel_loads.filter((f) => f.date >= from && f.date < to).length;
-    return { quality, invalid, bias, vm, pm, t, pt, dm, prov, ins, trend, servicesOverdue, docsOverdue, docsSoon, finesLoaded, lastFuel, lastGps, fuelCount };
+    return { partial, quality, invalid, bias, vm, pm, t, pt, dm, prov, ins, trend, servicesOverdue, docsOverdue, docsSoon, finesLoaded, lastFuel, lastGps, fuelCount };
   }, [key, data, months, vehicles, drivers, documents, maintenance, settings, infractions, fuel_loads, trips]);
 
-  if (!key || !calc) return <div className="empty">Todavía no hay datos de combustible ni de GPS cargados.</div>;
-  const { quality, invalid, bias, vm, t, pt, dm, prov, ins, trend, servicesOverdue, docsOverdue, docsSoon, finesLoaded, lastFuel, lastGps, fuelCount } = calc;
+  if (!key || !calc)
+    return (
+      <div className="empty">
+        Todavía no hay datos de combustible ni de GPS cargados. Importalos en <Link href="/combustible">Combustible</Link> y{' '}
+        <Link href="/reportes-km">Reportes KM</Link>.
+      </div>
+    );
+  const { partial, quality, invalid, bias, vm, t, pt, dm, prov, ins, trend, servicesOverdue, docsOverdue, docsSoon, finesLoaded, lastFuel, lastGps, fuelCount } = calc;
+  const D = (p: { cur: number | null; prev: number | null; good: 'up' | 'down' | 'none' }) =>
+    partial ? <span className="muted">mes parcial · no comparable</span> : <Delta {...p} />;
   const vmF = provFilter ? vm.filter((r) => r.prov === provFilter) : vm;
   const dmF = provFilter ? dm.filter((r) => r.prov === provFilter) : dm;
   const provList = [...new Set(vm.map((r) => r.prov))];
@@ -181,7 +192,12 @@ export default function Informe() {
   return (
     <>
       <div className="bar">
-        <b style={{ fontSize: 18 }}>📋 Informe de gestión · {monthLabel(key)}</b>
+        <b style={{ fontSize: 18 }}>
+          <span aria-hidden="true">📋</span> Informe de gestión · {monthLabel(key)}
+          <span className="muted" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>
+            emitido el {new Date().toLocaleDateString('es-AR')}
+          </span>
+        </b>
         <span className="sp" />
         <select value={key} onChange={(e) => setSel(e.target.value)} aria-label="Mes">
           {months.map((m) => (
@@ -204,6 +220,11 @@ export default function Informe() {
         </button>
       </div>
 
+      {partial && (
+        <div role="status" style={{ padding: 10, borderRadius: 8, background: '#fff1d6', color: '#7a4b00', fontSize: 13, marginBottom: 12 }}>
+          <b>⚠ Mes en curso / datos incompletos:</b> los totales cubren solo hasta la última fecha cargada y no son comparables con el mes anterior.
+        </div>
+      )}
       {/* Cobertura de datos: qué tan completo está el mes */}
       <div style={{ padding: 10, borderRadius: 8, background: '#f4f3ef', fontSize: 13, marginBottom: 16, color: INK2 }}>
         <b>Datos del período:</b> GPS hasta {lastGps ? fd(lastGps) : 'sin datos'} ({gpsCount} de {vm.length} vehículos con GPS) · Combustible hasta{' '}
@@ -223,17 +244,17 @@ export default function Informe() {
               <div className="muted" style={{ fontSize: 11 }}>
                 GPS {km0(t.gpsKm)} + odómetro {km0(t.odoOnlyKm)}
               </div>
-              <Delta cur={t.opKm} prev={pt.opKm} good="none" />
+              <D cur={t.opKm} prev={pt.opKm} good="none" />
             </>
           }
         />
-        <Kpi label="Litros cargados" value={km0(t.liters)} sub={<Delta cur={t.liters} prev={pt.liters} good="none" />} />
-        <Kpi label="Gasto en combustible" value={mon(t.fuelCost)} sub={<Delta cur={t.fuelCost} prev={pt.fuelCost} good="down" />} />
-        <Kpi label="Consumo L/100 km" value={f1(t.l100)} sub={<Delta cur={t.l100} prev={pt.l100} good="down" />} />
-        <Kpi label="Combustible $/km" value={mon(t.fuelPerKm)} sub={<Delta cur={t.fuelPerKm} prev={pt.fuelPerKm} good="down" />} />
-        <Kpi label="Mantenim. + reparaciones" value={mon(t.upkeep)} sub={<Delta cur={t.upkeep} prev={pt.upkeep} good="down" />} />
-        <Kpi label="Costo total por km" value={mon(t.costPerKm)} sub={<Delta cur={t.costPerKm} prev={pt.costPerKm} good="down" />} />
-        <Kpi label="Cargas de combustible" value={num(t.fills)} sub={<Delta cur={t.fills} prev={pt.fills} good="none" />} />
+        <Kpi label="Litros cargados" value={km0(t.liters)} sub={<D cur={t.liters} prev={pt.liters} good="none" />} />
+        <Kpi label="Gasto combustible + AdBlue" value={mon(t.fuelCost)} sub={<D cur={t.fuelCost} prev={pt.fuelCost} good="down" />} />
+        <Kpi label="Consumo L/100 km" value={f1(t.l100)} sub={<D cur={t.l100} prev={pt.l100} good="down" />} />
+        <Kpi label="Combustible $/km" value={mon(t.fuelPerKm)} sub={<D cur={t.fuelPerKm} prev={pt.fuelPerKm} good="down" />} />
+        <Kpi label="Mantenim. + reparaciones" value={mon(t.upkeep)} sub={<D cur={t.upkeep} prev={pt.upkeep} good="down" />} />
+        <Kpi label="Costo total por km" value={mon(t.costPerKm)} sub={<D cur={t.costPerKm} prev={pt.costPerKm} good="down" />} />
+        <Kpi label="Cargas de combustible" value={num(t.fills)} sub={<D cur={t.fills} prev={pt.fills} good="none" />} />
         <Kpi
           label="Km mal cargados en estaciones"
           value={`${quality.invalid} de ${quality.total}`}
