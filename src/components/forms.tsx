@@ -28,6 +28,7 @@ function useBump() {
     }
     if (service && (v.last_service_km === null || km > v.last_service_km)) patch.last_service_km = km;
     if (Object.keys(patch).length) await update('vehicles', vehicleId, patch);
+    if (patch.km !== undefined) await recordKmChange(vehicleId, patch.km as number, v.km, 'registro');
   };
 }
 
@@ -415,6 +416,7 @@ export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
             setBusy(true);
             try {
               await update('vehicles', vehicle.id, { km: num, km_date: todayStr() });
+              await recordKmChange(vehicle.id, num, vehicle.km, 'manual');
               await reload('km_history');
               onClose();
             } catch (e) {

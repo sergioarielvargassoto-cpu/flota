@@ -174,7 +174,7 @@ export function useImporters() {
         })
         .eq('id', vid);
       if (error) throw error;
-      await recordKmChange(vid, newKm, v.km);
+      await recordKmChange(vid, newKm, v.km, 'gps');
       updated++;
     }
     await reload('vehicles', 'documents', 'trips');
@@ -428,7 +428,7 @@ export function useImporters() {
       }
       const { error } = await sb().from('vehicles').update({ km, km_date: kmDate, fuel_card: st.card }).eq('id', vid);
       if (error) throw error;
-      if (km !== null && km !== st.prevKm) await recordKmChange(vid, km, st.prevKm);
+      if (km !== null && km !== st.prevKm) await recordKmChange(vid, km, st.prevKm, 'combustible');
     }
     await reload('vehicles', 'documents', 'fuel_loads');
     alert(

@@ -1,6 +1,19 @@
 'use client';
 import type { KmHistory, RepairHistory, MaintenanceHistory } from '@/lib/types';
 
+const SRC: Record<string, { label: string; color: string }> = {
+  manual: { label: '✍ Cargado a mano', color: '#ef6c00' },
+  gps: { label: '📡 Calculado con GPS', color: '#1565c0' },
+  combustible: { label: '⛽ Odómetro de estación', color: '#2e7d32' },
+  registro: { label: '🧾 Km de un registro', color: '#6a1b9a' },
+};
+/** changed_by se guarda como "origen:usuario"; los registros viejos (solo email) se muestran como manuales. */
+function parseSource(by: string) {
+  const i = by.indexOf(':');
+  const k = i > 0 ? by.slice(0, i) : '';
+  return SRC[k] ? { ...SRC[k], who: by.slice(i + 1) } : { ...SRC.manual, who: by };
+}
+
 export function KmTimeline({ history }: { history: KmHistory[] }) {
   if (!history.length) return null;
   const sorted = [...history].sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
@@ -27,7 +40,14 @@ export function KmTimeline({ history }: { history: KmHistory[] }) {
                 <span style={{ color: '#0d47a1', fontWeight: 'bold' }}>
                   {dateStr} {timeStr}
                 </span>
-                <span style={{ color: '#666', fontSize: '12px' }}>por {entry.changed_by}</span>
+                {(() => {
+                  const src = parseSource(entry.changed_by);
+                  return (
+                    <span style={{ fontSize: '12px' }}>
+                      <b style={{ color: src.color }}>{src.label}</b> <span style={{ color: '#666' }}>· {src.who}</span>
+                    </span>
+                  );
+                })()}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 'bold' }}>{change} km</span>

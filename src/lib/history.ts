@@ -1,11 +1,19 @@
 import { sb } from './supabase';
 
 /** Registra un cambio de kilómetros en el historial con auditoría completa */
-export async function recordKmChange(vehicleId: string, km: number, kmPrevious: number | null = null) {
+/** Origen de un cambio de km: quién/qué lo generó. Se guarda como prefijo de changed_by ("origen:usuario"). */
+export type KmSource = 'manual' | 'gps' | 'combustible' | 'registro';
+
+export async function recordKmChange(
+  vehicleId: string,
+  km: number,
+  kmPrevious: number | null = null,
+  source: KmSource = 'manual'
+) {
   const {
     data: { user },
   } = await sb().auth.getUser();
-  const changedBy = user?.email || 'sistema';
+  const changedBy = `${source}:${user?.email || 'sistema'}`;
 
   const { error } = await sb().from('km_history').insert({
     vehicle_id: vehicleId,
