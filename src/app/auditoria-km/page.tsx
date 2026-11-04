@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useData } from '@/lib/data';
 import { fd, isFuel, num } from '@/lib/util';
 import { Badge } from '@/components/Badge';
 import { gpsBetween, tolerance } from '@/lib/kmAudit';
+import { fuelPairs, monthLabel, monthRange, vehicleMonth, availableMonths, type Data } from '@/lib/fleetStats';
 
 type Reading = { date: string; km: number; src: string; who: string; rejected?: boolean };
 const SRC_LABEL: Record<string, string> = {
@@ -17,7 +18,23 @@ const daysBetween = (a: string, b: string) =>
   Math.round((+new Date(b + 'T00:00:00') - +new Date(a + 'T00:00:00')) / 864e5);
 
 export default function AuditoriaKm() {
-  const { vehicles, trips, fuel_loads, km_history, settings } = useData();
+  const { vehicles, trips, fuel_loads, km_history, settings, drivers, repairs, maintenance, infractions } = useData();
+  const [selM, setSelM] = useState('');
+  const [onlyFlags, setOnlyFlags] = useState(true);
+  const fleet: Data = useMemo(
+    () => ({ vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions }),
+    [vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions]
+  );
+  const fuelMonths = useMemo(
+    () => [...new Set(fuel_loads.map((f) => f.date.slice(0, 7)))].sort().reverse(),
+    [fuel_loads]
+  );
+  const mKey = fuelMonths.includes(selM) ? selM : (fuelMonths[0] ?? availableMonths(fleet)[0] ?? '');
+  const between = useMemo(() => {
+    if (!mKey) return { pairs: [], wins: [] };
+    const { from, to } = monthRange(mKey);
+    return { pairs: fuelPairs(fleet, from, to), wins: vehicleMonth(fleet, mKey) };
+  }, [fleet, mKey]);
 
   const { flags, stale, services } = useMemo(() => {
     const today = new Date().toLocaleDateString('en-CA');
@@ -154,6 +171,131 @@ export default function AuditoriaKm() {
         Se compara cada lectura de tablero (estaciones y cargas manuales) con la anterior más los km que midió el GPS en
         ese tramo (tolerancia: 100 km o 10 %, lo que sea mayor). Una diferencia grande puede ser un tablero mal leído, un GPS sin señal o un
         km anterior que estaba estimado: hay que verificarlo.
+      </p>
+
+
+      <h3>⛽ Auditoría entre cargas de combustible</h3>
+      <div className="bar">
+        <select value={mKey} onChange={(e) => setSelM(e.target.value)} aria-label="Mes">
+          {(fuelMonths.length ? fuelMonths : [mKey]).filter(Boolean).map((m) => (
+            <option key={m} value={m}>
+              {monthLabel(m)}
+            </option>
+          ))}
+        </select>
+        <label style={{ fontSize: 13 }}>
+          <input type="checkbox" checked={onlyFlags} onChange={(e) => setOnlyFlags(e.target.checked)} /> Solo tramos con alertas
+        </label>
+      </div>
+      <p className="muted">
+        Cada fila es el tramo entre una carga y la anterior del mismo vehículo (incluye la última del mes anterior, así que
+        el cruce de meses queda cubierto). El consumo de un tramo suelto es <b>indicativo</b>: no se sabe con cuánto
+        combustible salió el vehículo. El control confiable es el consumo acumulado de todo el mes (tabla siguiente).
+      </p>
+      {(() => {
+        const rows = between.pairs.filter((p) => !onlyFlags || p.flags.length);
+        return rows.length ? (
+          <div className="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>Vehículo</th>
+                  <th>Carga anterior</th>
+                  <th>Carga</th>
+                  <th>Km odómetro</th>
+                  <th>Km GPS</th>
+                  <th>Litros</th>
+                  <th>L/100 (indic.)</th>
+                  <th>Alertas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((p, i) => (
+                  <tr key={i}>
+                    <td>
+                      <b>{p.vehicle.plate}</b>
+                    </td>
+                    <td>
+                      {fd(p.prev.date)} · {num(p.prevKm)}
+                    </td>
+                    <td>
+                      {fd(p.cur.date)} · {num(p.curKm)}
+                      <div className="muted">{p.cur.station}</div>
+                    </td>
+                    <td>{num(p.dKm)}</td>
+                    <td>{p.gpsKm === null ? <span className="muted">sin GPS</span> : num(Math.round(p.gpsKm))}</td>
+                    <td>{num(p.cur.liters)}</td>
+                    <td>{p.l100 === null ? '—' : p.l100.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
+                    <td>
+                      {p.flags.length ? (
+                        p.flags.map((f, k) => (
+                          <div key={k} style={{ color: '#7a4b00', fontSize: 12 }}>
+                            ⚠ {f}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="muted">✔</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty">✔ No hay tramos con alertas en {monthLabel(mKey)}.</div>
+        );
+      })()}
+
+      <h4 style={{ margin: '18px 0 6px' }}>Consumo acumulado del mes por vehículo (método tanque a tanque)</h4>
+      <div className="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Vehículo</th>
+              <th>Km odómetro</th>
+              <th>Km GPS (mismo tramo)</th>
+              <th>Diferencia</th>
+              <th>Litros (ventana)</th>
+              <th>L/100 km</th>
+              <th>Referencia</th>
+              <th>Desvío</th>
+              <th>Margen por tanque</th>
+            </tr>
+          </thead>
+          <tbody>
+            {between.wins
+              .filter((w) => w.odoKm !== null || w.fills > 0)
+              .map((w) => (
+                <tr key={w.v.id}>
+                  <td>
+                    <b>{w.v.plate}</b>
+                  </td>
+                  <td>{w.odoKm === null ? '—' : num(w.odoKm)}</td>
+                  <td>{w.hasGps ? (w.gpsWinKm === null ? '—' : num(Math.round(w.gpsWinKm))) : <span className="muted">sin GPS</span>}</td>
+                  <td>{w.gpsVsOdo === null ? '—' : num(Math.round(w.gpsVsOdo))}</td>
+                  <td>{w.winLiters === null ? '—' : num(Math.round(w.winLiters))}</td>
+                  <td>{w.l100 === null ? '—' : w.l100.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
+                  <td>{w.l100Ref === null ? '—' : w.l100Ref.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
+                  <td>
+                    {w.l100Dev === null ? (
+                      '—'
+                    ) : (
+                      <b style={{ color: w.l100Signif ? '#a32424' : '#52514e' }}>
+                        {w.l100Dev > 0 ? '+' : ''}
+                        {Math.round(w.l100Dev)} %{w.l100Signif ? ' ⚠' : ''}
+                      </b>
+                    )}
+                  </td>
+                  <td>{w.l100Band === null ? '—' : `±${w.l100Band.toLocaleString('es-AR', { maximumFractionDigits: 1 })} (tanque ~${Math.round(w.tankCap)} L)`}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted">
+        Referencia: el consumo del mes anterior del mismo vehículo o, si no hay, la mediana de vehículos del mismo tipo. Como no se sabe con cuánto combustible salió el vehículo, cada consumo lleva un margen
+        (capacidad del tanque ÷ km de la ventana): solo se marca ⚠ si el desvío supera el 25 % y ese margen. Un desvío marcado amerita revisar lecturas de odómetro, estado del vehículo o uso del combustible.
       </p>
 
       <h3>🛠 Services vencidos o próximos</h3>
