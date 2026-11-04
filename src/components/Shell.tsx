@@ -9,7 +9,6 @@ const TABS: [string, string][] = [
   ['/choferes', '🪪 Choferes'],
   ['/infracciones', '⚠️ Infracciones'],
   ['/informe', '📋 Informe de gestión'],
-  ['/reportes', '📈 Reportes'],
   ['/reparaciones', '🔧 Reparaciones'],
   ['/mantenimientos', '🛢 Mantenimientos'],
   ['/recorridos', '📍 Recorridos'],
