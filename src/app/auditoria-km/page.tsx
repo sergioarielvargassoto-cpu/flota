@@ -188,7 +188,7 @@ export default function AuditoriaKm() {
         </label>
       </div>
       <p className="muted">
-        Cada fila es el tramo entre una carga y la anterior del mismo vehículo (incluye la última del mes anterior, así que
+        Solo se comparan lecturas válidas; las cargas con km mal digitado en el surtidor se listan en el <b>Informe de gestión</b> (sección “Calidad de los km declarados”). La comparación con el GPS admite un margen de un día de recorrido, porque el GPS suma días completos. Cada fila es el tramo entre una carga y la anterior del mismo vehículo (incluye la última del mes anterior, así que
         el cruce de meses queda cubierto). El consumo de un tramo suelto es <b>indicativo</b>: no se sabe con cuánto
         combustible salió el vehículo. El control confiable es el consumo acumulado de todo el mes (tabla siguiente).
       </p>

@@ -26,6 +26,9 @@ import {
   totals,
   vehicleMonth,
   monthRange,
+  readingQuality,
+  invalidReadings,
+  gpsBias,
   type Data,
 } from '@/lib/fleetStats';
 
@@ -124,6 +127,9 @@ export default function Informe() {
     const docsOverdue = alerts.filter((a) => a.kind !== 'Mantenimiento' && a.status === 'vencido').length;
     const docsSoon = alerts.filter((a) => a.kind !== 'Mantenimiento' && (a.status === 'critico' || a.status === 'urgente' || a.status === 'proximo')).length;
     const { from, to } = monthRange(key);
+    const quality = readingQuality(data, from, to);
+    const invalid = invalidReadings(data, from, to);
+    const bias = gpsBias(vm);
     const finesLoaded = infractions.filter((i) => i.date >= from && i.date < to).length;
     const ins = insights(vm, pm, dm, t, pt, { servicesOverdue, docsOverdue, finesLoaded, key });
     // Tendencia (hasta 6 meses con datos)
@@ -139,11 +145,11 @@ export default function Informe() {
     const lastFuel = fuel_loads.filter((f) => f.date >= from && f.date < to).reduce<string>((m, f) => (f.date > m ? f.date : m), '');
     const lastGps = trips.filter((tr) => tr.date >= from && tr.date < to).reduce<string>((m, tr) => (tr.date > m ? tr.date : m), '');
     const fuelCount = fuel_loads.filter((f) => f.date >= from && f.date < to).length;
-    return { vm, pm, t, pt, dm, prov, ins, trend, servicesOverdue, docsOverdue, docsSoon, finesLoaded, lastFuel, lastGps, fuelCount };
+    return { quality, invalid, bias, vm, pm, t, pt, dm, prov, ins, trend, servicesOverdue, docsOverdue, docsSoon, finesLoaded, lastFuel, lastGps, fuelCount };
   }, [key, data, months, vehicles, drivers, documents, maintenance, settings, infractions, fuel_loads, trips]);
 
   if (!key || !calc) return <div className="empty">Todavía no hay datos de combustible ni de GPS cargados.</div>;
-  const { vm, t, pt, dm, prov, ins, trend, servicesOverdue, docsOverdue, docsSoon, finesLoaded, lastFuel, lastGps, fuelCount } = calc;
+  const { quality, invalid, bias, vm, t, pt, dm, prov, ins, trend, servicesOverdue, docsOverdue, docsSoon, finesLoaded, lastFuel, lastGps, fuelCount } = calc;
   const vmF = provFilter ? vm.filter((r) => r.prov === provFilter) : vm;
   const dmF = provFilter ? dm.filter((r) => r.prov === provFilter) : dm;
   const provList = [...new Set(vm.map((r) => r.prov))];
@@ -167,6 +173,7 @@ export default function Informe() {
     add('Provincias', prov.map((p) => ({ Provincia: p.prov, Vehiculos: p.vehicles, Km: Math.round(p.opKm), Litros: Math.round(p.liters), Gasto: Math.round(p.fuelCost), 'L/100km': p.l100 ? +p.l100.toFixed(2) : '', '$ comb/km': p.fuelPerKm ? Math.round(p.fuelPerKm) : '', 'Costo total $/km': p.costPerKm ? Math.round(p.costPerKm) : '' })));
     add('Choferes', dm.map((x) => ({ Chofer: x.name, Provincia: x.prov, Cargas: x.fills, 'Dias con carga': x.fillDays, Litros: Math.round(x.liters), Gasto: Math.round(x.amount), 'Km (odometro)': Math.round(x.km), 'L/100km': x.l100 ? +x.l100.toFixed(2) : '', Vehiculos: x.vehicles, Estaciones: x.stations, 'Cargas en vehiculo no asignado': x.notAssigned, 'Lecturas descartadas': x.rejected, Multas: x.finesCount, 'Monto multas': Math.round(x.finesAmount) })));
     add('Vehiculos', vm.map((r) => ({ Patente: r.v.plate, Tipo: r.v.type, Provincia: r.prov, 'Chofer asignado': r.driverName, 'Km GPS': r.gpsKm === null ? '' : Math.round(r.gpsKm), 'Km odometro': r.odoKm ?? '', Cargas: r.fills, Litros: Math.round(r.liters), 'L/100km': r.l100 ? +r.l100.toFixed(2) : '', 'Gasto comb.': Math.round(r.fuelCost), 'Mant.+Rep.': Math.round(r.maintCost + r.repairCost), 'Costo $/km': r.costPerKm ? Math.round(r.costPerKm) : '' })));
+    add('Km invalidos', invalid.map((r) => ({ Fecha: r.load.date, Vehiculo: r.plate, Chofer: r.driver, Estacion: r.station, 'Km declarado': r.declared, 'Km esperable': r.expected ?? '', Motivo: r.why })));
     add('Hallazgos', ins.map((i) => ({ Severidad: SEV[i.sev].label, Area: i.area, Hallazgo: i.title, Detalle: i.detail })));
     XLSX.writeFile(wb, `Informe_flota_${key}.xlsx`);
   }
@@ -227,6 +234,11 @@ export default function Informe() {
         <Kpi label="Mantenim. + reparaciones" value={mon(t.upkeep)} sub={<Delta cur={t.upkeep} prev={pt.upkeep} good="down" />} />
         <Kpi label="Costo total por km" value={mon(t.costPerKm)} sub={<Delta cur={t.costPerKm} prev={pt.costPerKm} good="down" />} />
         <Kpi label="Cargas de combustible" value={num(t.fills)} sub={<Delta cur={t.fills} prev={pt.fills} good="none" />} />
+        <Kpi
+          label="Km mal cargados en estaciones"
+          value={`${quality.invalid} de ${quality.total}`}
+          sub={<span style={{ color: quality.pct > 10 ? '#a32424' : INK2, fontSize: 12, fontWeight: 600 }}>{quality.pct > 10 ? '⚠ ' : ''}{f1(quality.pct)} % de las cargas</span>}
+        />
       </div>
 
       <Section title="🎯 Hallazgos y decisiones" hint="Reglas automáticas sobre los datos del mes, ordenadas por gravedad.">
@@ -426,6 +438,124 @@ export default function Informe() {
           </table>
         </div>
         {!finesLoaded && <p className="muted">Multas: todavía no hay infracciones cargadas en este período.</p>}
+      </Section>
+
+      <Section
+        title="🧾 Calidad de los km declarados en las estaciones"
+        hint="En el surtidor se digita el km del tablero. Cuando se carga un número inventado o incompleto, ese dato se descarta y no sirve para controlar consumo ni mantenimiento."
+      >
+        <div style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 12, marginBottom: 12, color: INK }}>
+          <b>📢 Aviso para todos los choferes:</b> al cargar combustible, decí SIEMPRE al playero el kilometraje exacto que marca el
+          tablero (mirá el odómetro, no de memoria ni un número aproximado). Con el km correcto controlamos el consumo, no se
+          pasa ningún service y se evitan sospechas. Una carga con el km mal dicho cuenta como dato inválido.
+        </div>
+        <p style={{ margin: '0 0 8px' }}>
+          GPS vs odómetro: en el mes, el odómetro marca <b>{bias.pct === null ? '—' : `${bias.pct > 0 ? '+' : ''}${f1(bias.pct)} %`}</b> respecto
+          del GPS ({bias.n} vehículos comparables). Es un desfasaje chico: las diferencias grandes en tramos cortos vienen de que el GPS
+          cuenta días completos y de km mal digitados.
+        </p>
+        {invalid.length ? (
+          <>
+            <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))' }}>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Por chofer</div>
+                <div className="tw">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Chofer</th>
+                        <th>Cargas</th>
+                        <th>Km inválidos</th>
+                        <th>%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quality.byDriver
+                        .filter((r) => r.invalid > 0)
+                        .map((r) => (
+                          <tr key={r.name}>
+                            <td>
+                              <b>{r.name}</b>
+                            </td>
+                            <td>{r.loads}</td>
+                            <td>
+                              <b style={{ color: '#a32424' }}>{r.invalid}</b>
+                            </td>
+                            <td>{f1(r.pct, 0)} %</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Por estación de servicio</div>
+                <div className="tw">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Estación</th>
+                        <th>Cargas</th>
+                        <th>Km inválidos</th>
+                        <th>%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quality.byStation
+                        .filter((r) => r.invalid > 0)
+                        .slice(0, 10)
+                        .map((r) => (
+                          <tr key={r.name}>
+                            <td>{r.name}</td>
+                            <td>{r.loads}</td>
+                            <td>
+                              <b style={{ color: '#a32424' }}>{r.invalid}</b>
+                            </td>
+                            <td>{f1(r.pct, 0)} %</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div style={{ fontWeight: 600, margin: '14px 0 4px' }}>Detalle de cada carga con km inválido</div>
+            <div className="tw">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Vehículo</th>
+                    <th>Chofer</th>
+                    <th>Estación</th>
+                    <th>Km declarado</th>
+                    <th>Km esperable</th>
+                    <th>Motivo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invalid.map((r) => (
+                    <tr key={r.load.id}>
+                      <td>{fd(r.load.date)}</td>
+                      <td>
+                        <b>{r.plate}</b>
+                      </td>
+                      <td>{r.driver}</td>
+                      <td>{r.station}</td>
+                      <td>
+                        <b style={{ color: '#a32424' }}>{num(r.declared)}</b>
+                      </td>
+                      <td>{r.expected === null ? '—' : `≈ ${num(r.expected)}`}</td>
+                      <td className="muted">{r.why}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="empty">✔ Todas las cargas del mes tienen un km coherente.</div>
+        )}
       </Section>
 
       <Section title="🚚 Por vehículo" hint="Km por GPS cuando el vehículo lo tiene; si no, por odómetro de las estaciones. El costo suma combustible, mantenimiento y reparaciones.">

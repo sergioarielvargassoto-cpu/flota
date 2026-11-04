@@ -435,18 +435,20 @@ export type PairRow = {
   flags: string[];
 };
 
-/** Pares de cargas consecutivas por vehículo con el odómetro DECLARADO (km_raw si no fue aceptado). */
+/**
+ * Pares de cargas consecutivas por vehículo usando SOLO lecturas válidas (las inválidas se listan aparte en
+ * `invalidReadings`). El GPS suma días completos y la carga ocurre a cualquier hora, por eso el margen de comparación
+ * incluye el recorrido de un día promedio del vehículo.
+ */
 export function fuelPairs(d: Data, from: string, to: string): PairRow[] {
   const out: PairRow[] = [];
   for (const v of d.vehicles) {
     if (v.status === 'Baja') continue;
-    const all = d.fuel_loads
-      .filter((f) => f.vehicle_id === v.id && isFuelProduct(f.product) && (f.km ?? f.km_raw) !== null && (f.km ?? f.km_raw) !== undefined)
-      .map((f) => ({ f, odo: (f.km ?? f.km_raw) as number }))
-      .sort((a, b) => a.f.date.localeCompare(b.f.date) || a.odo - b.odo);
+    const all = acceptedLoads(d, v.id).map((f) => ({ f, odo: f.km as number }));
     const vt = d.trips.filter((t) => t.vehicle_id === v.id);
     const first = vt.reduce<string | null>((m, t) => (!m || t.date < m ? t.date : m), null);
     const last = vt.reduce<string | null>((m, t) => (!m || t.date > m ? t.date : m), null);
+    const daily = vt.length ? Math.max(50, sum(vt.map((t) => Number(t.km_calc) || 0)) / vt.length) : 0;
     for (let i = 1; i < all.length; i++) {
       const a = all[i - 1],
         b = all[i];
@@ -455,8 +457,6 @@ export function fuelPairs(d: Data, from: string, to: string): PairRow[] {
       const days = daysBetween(a.f.date, b.f.date);
       const sameDay = days === 0;
       const flags: string[] = [];
-      if (b.f.km === null || b.f.km === undefined) flags.push('Lectura descartada al importar (tipeo o inconsistente)');
-      if (a.f.km === null || a.f.km === undefined) flags.push('La carga anterior tenía lectura descartada: tramo no confiable');
       if (dKm <= 0) flags.push('El odómetro no avanza');
       if (sameDay) flags.push('Mismo día: el orden real es incierto (revisar hora en el remito)');
       let gpsKm: number | null = null,
@@ -464,14 +464,89 @@ export function fuelPairs(d: Data, from: string, to: string): PairRow[] {
       if (first && last && a.f.date >= first && b.f.date <= last && !sameDay) {
         gpsKm = gpsBetween(d.trips, v.id, a.f.date, b.f.date);
         gpsDiff = dKm - gpsKm;
-        if (Math.abs(gpsDiff) > tolerance(gpsKm)) flags.push(gpsDiff > 0 ? 'El odómetro marca más km que el GPS' : 'El GPS marca más km que el odómetro');
+        if (Math.abs(gpsDiff) > tolerance(gpsKm) + daily)
+          flags.push(gpsDiff > 0 ? 'El odómetro marca bastante más km que el GPS' : 'El GPS marca bastante más km que el odómetro');
       }
       const l100 = dKm > 0 ? ((Number(b.f.liters) || 0) / dKm) * 100 : null;
-      if (l100 !== null && dKm > 100 && (l100 < 4 || l100 > 30)) flags.push('Consumo implícito fuera de rango en este tramo (indicativo)');
+      if (l100 !== null && dKm > 150 && (l100 < 4 || l100 > 30)) flags.push('Consumo implícito fuera de rango en este tramo (indicativo)');
       out.push({ vehicle: v, prev: a.f, cur: b.f, prevKm: a.odo, curKm: b.odo, dKm, days, sameDay, gpsKm, gpsDiff, l100, flags });
     }
   }
   return out.sort((a, b) => b.cur.date.localeCompare(a.cur.date));
+}
+
+export type InvalidRow = {
+  load: Fuel;
+  plate: string;
+  driver: string;
+  station: string;
+  declared: number;
+  expected: number | null; // odómetro esperable según las lecturas válidas vecinas
+  why: string;
+};
+
+/** Lecturas de odómetro inválidas (tipeos en el surtidor, valores absurdos) del período, con el valor esperable. */
+export function invalidReadings(d: Data, from: string, to: string): InvalidRow[] {
+  const out: InvalidRow[] = [];
+  const vMap = new Map(d.vehicles.map((v) => [v.id, v]));
+  for (const f of d.fuel_loads) {
+    if (f.date < from || f.date >= to || !isFuelProduct(f.product)) continue;
+    if (f.km !== null && f.km !== undefined) continue;
+    if (f.km_raw === null || f.km_raw === undefined) continue;
+    const v = vMap.get(f.vehicle_id);
+    if (!v) continue;
+    const acc = acceptedLoads(d, v.id);
+    let expected: number | null = odoAt(acc, f.date);
+    if (expected === null) {
+      const lastBefore = [...acc].reverse().find((x) => x.date <= f.date);
+      const firstAfter = acc.find((x) => x.date >= f.date);
+      expected = lastBefore ? (lastBefore.km as number) : firstAfter ? (firstAfter.km as number) : null;
+    }
+    const decl = Number(f.km_raw);
+    let why = 'Km inconsistente con las lecturas vecinas';
+    if (decl < 1000) why = 'Km demasiado bajo (parece un número inventado o incompleto)';
+    else if (expected !== null && decl > expected * 1.5) why = 'Km muy superior al real (probable dígito de más)';
+    else if (expected !== null && decl < expected * 0.7) why = 'Km muy inferior al real (probable dígito de menos)';
+    out.push({ load: f, plate: v.plate, driver: f.driver_name ?? 'Sin dato', station: f.station ?? '—', declared: decl, expected: expected === null ? null : Math.round(expected), why });
+  }
+  return out.sort((a, b) => b.load.date.localeCompare(a.load.date));
+}
+
+export type QualityRow = { name: string; loads: number; invalid: number; pct: number };
+/** % de cargas con odómetro inválido, por chofer y por estación. */
+export function readingQuality(d: Data, from: string, to: string) {
+  const mk = (keyOf: (f: Fuel) => string) => {
+    const m = new Map<string, { loads: number; invalid: number }>();
+    d.fuel_loads
+      .filter((f) => f.date >= from && f.date < to && isFuelProduct(f.product))
+      .forEach((f) => {
+        const k = keyOf(f) || 'Sin dato';
+        const r = m.get(k) ?? { loads: 0, invalid: 0 };
+        r.loads++;
+        if ((f.km === null || f.km === undefined) && f.km_raw !== null && f.km_raw !== undefined) r.invalid++;
+        m.set(k, r);
+      });
+    return [...m.entries()]
+      .map(([name, r]) => ({ name, loads: r.loads, invalid: r.invalid, pct: r.loads ? (r.invalid / r.loads) * 100 : 0 }))
+      .sort((a, b) => b.invalid - a.invalid || b.pct - a.pct);
+  };
+  const total = d.fuel_loads.filter((f) => f.date >= from && f.date < to && isFuelProduct(f.product));
+  const invalid = total.filter((f) => (f.km === null || f.km === undefined) && f.km_raw !== null && f.km_raw !== undefined).length;
+  return {
+    byDriver: mk((f) => f.driver_name ?? ''),
+    byStation: mk((f) => (f.station ?? '').replace(/\s*\(.*\)\s*$/, '')),
+    total: total.length,
+    invalid,
+    pct: total.length ? (invalid / total.length) * 100 : 0,
+  };
+}
+
+/** Desfasaje medio del GPS frente al odómetro (ventanas completas del mes; excluye GPS que casi no registró). */
+export function gpsBias(rows: VehicleMonth[]): { pct: number | null; n: number } {
+  const ok = rows.filter((r) => r.gpsWinKm !== null && r.odoKm && r.gpsWinKm >= 0.2 * r.odoKm && r.gpsWinKm > 200);
+  const o = sum(ok.map((r) => r.odoKm as number));
+  const g = sum(ok.map((r) => r.gpsWinKm as number));
+  return { pct: g > 0 ? (o / g - 1) * 100 : null, n: ok.length };
 }
 
 /* ───────────────────────── Hallazgos para decidir ───────────────────────── */
