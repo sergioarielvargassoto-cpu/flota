@@ -19,8 +19,22 @@ no es la registrada para el vehículo (fuel_loads no guarda la tarjeta por carga
 El responsable pidió advertir que no se mezclen datos de **OQK804 y OUG184** (las dos patentes empiezan con O; km 329.000 y 310.265). El sistema avisa en la ficha de cada uno,
 en el formulario de km, al guardar mantenimientos/reparaciones, al importar combustible (si un km no encaja con el vehículo pero sí con su gemelo) y en Auditoría km.
 Hallazgo con los datos: la carga del 04/09 de OUG184 (309.194 km, García Ramón, remito 3561-00082476) también encaja con la trayectoria de OQK804 (que solo tiene lecturas del 21 y 29/10 y no tiene GPS);
-ningún dato de OQK804 encaja con OUG184. No se puede asegurar de cuál es.
+ningún dato de OQK804 encaja con OUG184. No se puede asegurar de cuál es. **Matiz (5/11):** como OQK804 no tiene GPS confiable, que el dato "encaje" solo significa que es físicamente posible: es evidencia **débil**. Auditoría km lo rotula como débil/fuerte según el GPS del otro vehículo.
 También se detecta automáticamente el par AF751HM ↔ AF751HN (patentes que difieren en 1 letra).
+
+## Reglas de validación vigentes (5/11/2026) y por qué
+Detalle y valores en `src/lib/params.ts` (`PARAM_DOCS`, visible en Auditoría km → Parámetros). Resumen de las reglas que se agregaron al auditar el sistema:
+- **Mismo día que la referencia:** sin hora no se sabe el orden; se acepta un retroceso chico (redondeo) y un avance de hasta un día de recorrido. Antes se rechazaban lecturas buenas.
+- **Regla física solo con referencia reciente (≤ 7 días):** con una referencia vieja pudo haber cargas fuera de los datos; decide el GPS.
+- **Margen de referencia aproximada (taller/manual, 500 km) a ambos lados**, y la **suma** de márgenes en pares taller–taller.
+- **GPS "caído" es solo diagnóstico**, no aprueba lecturas. Los vehículos con GPS no confiable no descartan lecturas contra el GPS.
+- **Una sola vecina → "dudosa"**, no "atípica" (el importador solo descarta las atípicas).
+- **`last_service_km` derivado:** se recalcula con el service más reciente al crear/editar/borrar registros.
+- **Km guardado derivado vs. tipeado:** sin cobertura GPS, un km tipeado a mano no se pisa; uno derivado sí se recalcula.
+- **Marcador 0 "pendiente" (AI605GB):** lo respetan la importación de Gestya (no suma GPS), la de combustible (no recalcula) y el recálculo (ignora lo anterior al marcador).
+- **Carga de otro vehículo:** nunca se rescata sola; la tarjeta distinta a la registrada genera aviso al importar.
+- **Regresión:** `npx tsx scripts/verify-km.ts` (7 pruebas sin base de datos). Correrla después de tocar cualquier parámetro. Con datos de septiembre: 0 falsos rechazos de 79 lecturas válidas.
+- **Cómo usar los hallazgos:** al re-analizar, cada cambio de parámetro debe repetir esa comprobación (falsos rechazos = 0; los 3 casos conocidos siguen marcados: AE615LU 05/09, AG281ZJ 14/09, NWG124 13/10).
 
 ## Qué rehacer, con más datos
 1. **Factor de escala odómetro/GPS por vehículo** (regresión por el origen, con intervalo de confianza). Exigir ≥6 tramos limpios por unidad.
@@ -38,7 +52,8 @@ También se detecta automáticamente el par AF751HM ↔ AF751HN (patentes que di
 6. **Detección de anomalías de combustible:** ajuste de litros acumulados vs km por vehículo (R², intercepto, residuos); marcar cargas con residuo grande.
    Evaluar si hay pérdidas (carga sin recorrido equivalente) con datos de 3+ meses.
 7. **Sensibilidad:** repetir el barrido de márgenes (0–150 km, 0–5 %) y elegir el más estable.
-8. **Cobertura GPS:** 9 de 21 vehículos no tienen GPS; decidir si se agregan a Gestya. Para ellos solo hay odómetro de estaciones.
+8. **Parámetros nuevos a recalibrar:** `PHYSICAL_RULE_MAX_GAP_DAYS` (7), `UNCOVERED_GPS_KM_PER_DAY` (400), `OKODO_BACK_KM` (300), `MAX_PLAUSIBLE_LOAD_L` (300). Salen de pocos meses de datos y de criterio, no de medición.
+9. **Cobertura GPS:** 9 de 21 vehículos no tienen GPS; decidir si se agregan a Gestya. Para ellos solo hay odómetro de estaciones.
 
 ## Conocimiento del dueño (hay que tenerlo en cuenta al interpretar)
 - **AG281ZJ (camión Mercedes, conductor Cáceres Nahuel) es muy confiable:** suele reportar bien los km. Según el dueño, **los km mal cargados en sus remitos son
@@ -52,7 +67,8 @@ También se detecta automáticamente el par AF751HM ↔ AF751HN (patentes que di
   **o la del 25/09 (143.409) está tipeada baja por 113 km o más**. Verificar con el remito/foto de esa carga.
   **Actualización (4/11):** el dueño informa que el 25/09 tenía ≈ 143.350 km (coincide con el 143.409 declarado). Con eso, todo cuadra: 143.350 + GPS posterior da
   144.015 el 30/09 (declarado 144.024), 144.985 el 07/10 (service 145.000) y **148.185–148.375 km al 31/10**. El que queda sospechoso es el del 23/09 (143.112): probable
-  error del playero (real ≈ 142.833–142.999). Km vigente a corregir en la ficha: ≈ 148.390 (service 07/10 + GPS posterior); hoy figura 213.000 por un registro mal cargado.
+  error del playero (real ≈ 142.833–142.999).
+  **Resuelto (5/11):** km acordado con el dueño = **148.310** (143.350 al 25/09 + 350 km de regreso + 4.610 km de GPS del 27/09 al 31/10); es coherente con la lectura del 30/09 (144.024) y el service del 07/10 (145.000).
 - **Renault:** un tanque lleno rinde entre 400 y 500 km (≈ 9–11 L/100 km). La carga del 26/09 del AG416OE (29,75 L) completó el tanque.
 - **Mantenimientos y Reparaciones:** los km se anotan en el taller leyendo el tablero (a veces redondeados): se tratan como lecturas **confiables** del vehículo.
 - **Los vehículos dados de baja** conservan todo su historial (estadística histórica y respaldo legal); el 08 y fotos se guardan como documento del vehículo.
@@ -60,4 +76,5 @@ También se detecta automáticamente el par AF751HM ↔ AF751HN (patentes que di
 ## Pendientes de datos para que el re-análisis sirva
 - Cargar el archivo de combustible de YPF de **octubre** y siguientes (hoy octubre tiene solo GPS).
 - Cargar la capacidad real del tanque de cada vehículo y confirmar los km base de los vehículos sin GPS.
+- Corregir en su registro los tres km de taller marcados (AE615LU 05/09 = 120.000, AG281ZJ 14/09 = 134.999, NWG124 13/10 = 185.000) y cargar el km real de AI605GB.
 - Confirmar con remitos los casos abiertos (AG281ZJ 23→25/09; AH387NS y OQK804 con muchas lecturas inválidas: revisar su tablero).

@@ -77,13 +77,43 @@ export const PARAM_DOCS: ParamDoc[] = [
   {
     name: 'Km en 0 cargado a mano = "pendiente de verificar"',
     value: 'deja sin efecto lo conocido hasta ese momento; no se pisa con combustible ni con GPS acumulado',
-    why: 'Cuando el responsable no está seguro del km (p. ej. AI605GB), un 0 evita que el sistema invente un valor. Se reemplaza al cargar el km real con su fecha.',
+    why: 'Cuando el responsable no está seguro del km (p. ej. AI605GB), un 0 evita que el sistema invente un valor. Rige en TODOS los caminos que escriben el km: la importación de Gestya (GPS) no lo pisa, la de combustible no recalcula ese vehículo, y el recálculo por registros ignora todo lo anterior al marcador. Se reemplaza al cargar el km real con su fecha de lectura.',
+    review: '—',
+  },
+  {
+    name: 'Lectura del mismo día que la referencia',
+    value: `acepta un retroceso de hasta ${OKODO_BACK_KM} km (+ margen de la referencia aproximada) y un avance de hasta el recorrido GPS de ese día (o ${OKODO_KM_PER_DAY} km sin GPS)`,
+    why: 'Las cargas no traen hora: dos lecturas del mismo día pueden estar en cualquier orden, y una puede ser anterior a la de referencia. Comparar con el rango "entre fechas" (que daría 0 km) rechazaba lecturas buenas; no se puede saber el sentido, así que solo se descarta lo imposible en ambos sentidos.',
+    review: 'Si las cargas llegaran con hora, ordenar por hora y aplicar el rango normal.',
+  },
+  {
+    name: 'Lectura anterior a la referencia / GPS sin cargar al día',
+    value: `referencia − GPS del tramo · si la referencia es posterior al último día de GPS cargado se admite hasta ${UNCOVERED_GPS_KM_PER_DAY} km por cada día sin datos`,
+    why: 'Los remitos tardíos y los archivos de un mes ya cubierto son comunes. Y un service anotado el 03/11 con GPS hasta el 31/10 no debe hacer descartar lecturas de octubre: se usa el GPS que hay y se tolera el recorrido de los días que faltan.',
+    review: 'Se reduce sola a medida que se importa el GPS al día.',
+  },
+  {
+    name: 'Orden de prioridad entre lecturas',
+    value: 'misma fecha: manual > taller > estación; entre iguales, la última registrada',
+    why: 'Una lectura cargada a mano por el responsable corrige a la de una estación; entre dos del mismo tipo y día vale la más reciente de cargar. Solo cuentan como lectura: estación válida, km a mano con fecha de lectura, mantenimiento y reparación. Los asientos "gps", "combustible" y "registro" del historial son consecuencia del cálculo, no lecturas.',
+    review: '—',
+  },
+  {
+    name: 'Km del último service (derivado)',
+    value: 'km del mantenimiento tipo "service" más reciente (por fecha y, si empatan, el mayor)',
+    why: 'Se recalcula al crear, editar o borrar un registro: si se corrige o elimina un service, el próximo vencimiento se corrige solo (antes solo podía subir). Si no queda ningún service, se conserva el valor de la ficha, porque pudo cargarse a mano.',
+    review: 'Cargar el km del último service de los vehículos que no tienen mantenimientos registrados.',
+  },
+  {
+    name: 'Km guardado derivado vs. tipeado',
+    value: 'derivado = el último cambio del historial lo hizo el sistema (gps, combustible o registro) y coincide con el km guardado',
+    why: 'Sin GPS que cubra desde la última lectura, el km solo se recalcula si la lectura es tan reciente como el dato guardado, o si el guardado era derivado (por ejemplo venía de un registro que se corrigió o borró). Un km tipeado a mano sin respaldo se respeta.',
     review: '—',
   },
   {
     name: 'Contraste con la trayectoria (varias lecturas, no solo la última)',
     value: `cada lectura se compara con hasta ${NEIGHBORS_EACH_SIDE} anteriores y ${NEIGHBORS_EACH_SIDE} posteriores; atípica = no concuerda con ninguna; dudosa = concuerda con menos de la mitad (con 3 o más vecinas)`,
-    why: 'Concordar es que el avance del odómetro entre ambas fechas quepa en el rango de GPS (o sea posible si no hay GPS confiable), contando el redondeo de taller. Así un 123, un 213.000 o un 134.999 no tienen respaldo en ninguna vecina, aunque la última lectura sea buena o esté mal. Con septiembre-octubre, errores de ±500 km pasan (redondeo) y desde ±800 km se marcan.',
+    why: 'Concordar es que el avance del odómetro entre ambas fechas quepa en el rango de GPS (o sea posible si no hay GPS confiable), contando el redondeo de taller. Así un 123, un 213.000 o un 134.999 no tienen respaldo en ninguna vecina, aunque la última lectura sea buena o esté mal. Con septiembre-octubre, errores de ±500 km pasan (redondeo) y desde ±800 km se marcan. Si hay UNA sola vecina no se sabe cuál de las dos está mal: se marca "dudosa" y el importador no la descarta. El margen de cada par es la SUMA de los márgenes de ambas lecturas (dos anotaciones de taller pueden estar redondeadas en sentidos opuestos).',
     review: 'Con más lecturas por vehículo se puede subir a más vecinas y afinar el margen. Es la mejora que más se beneficia de tener más datos.',
   },
   {
@@ -93,16 +123,16 @@ export const PARAM_DOCS: ParamDoc[] = [
     review: 'Cuando haya más lecturas por vehículo, la coincidencia con el gemelo se podrá descartar con más seguridad.',
   },
   {
-    name: 'GPS caído',
+    name: 'GPS caído (solo diagnóstico)',
     value: `máximo del rango < ${GPS_DEAD_RATIO * 100} % del odómetro`,
-    why: 'El Sandero (AF751HM) tuvo el GPS sin registrar en septiembre: se mide por odómetro y se avisa revisar el equipo.',
+    why: 'El Sandero (AF751HM) tuvo el GPS sin registrar en septiembre: se avisa revisar el equipo. Es solo una alerta: NO sirve para aprobar lecturas. Un GPS que casi no registró no prueba que el odómetro esté bien, y para un vehículo con GPS confiable una lectura que no cabe en el rango se descarta igual (un 120.000 contra 123.235 no debe pasar por "GPS caído").',
     review: 'Si aparecen otros casos, revisar si el umbral debe subir.',
   },
   {
     name: 'Regla física de plausibilidad',
-    value: `km máximos = (litros + capacidad del tanque) ÷ ${PHYSICAL_MIN_L_PER_100} L/100 km`,
-    why: 'Con el combustible disponible no se puede recorrer más. Sobre 77 tramos rechazó 1 (AA726SG: 2.400 km con 20,7 L) y ningún falso positivo.',
-    review: 'Cargar la capacidad real del tanque de cada vehículo.',
+    value: `km máximos = (litros + capacidad del tanque) ÷ ${PHYSICAL_MIN_L_PER_100} L/100 km · solo si la referencia es de hace ${PHYSICAL_RULE_MAX_GAP_DAYS} días o menos`,
+    why: `Con el combustible disponible no se puede recorrer más. Sobre 77 tramos rechazó 1 (AA726SG: 2.400 km con 20,7 L) y ningún falso positivo. Con una referencia más vieja que ${PHYSICAL_RULE_MAX_GAP_DAYS} días pudo haber cargas que no están en los datos: ahí la regla no se aplica y decide el GPS (si no, se rechazarían lecturas buenas tras un hueco de datos). Las cargas de más de ${MAX_PLAUSIBLE_LOAD_L} L se consideran error de tipeo y no cuentan para estimar el tanque.`,
+    review: 'Cargar la capacidad real del tanque de cada vehículo; revisar el límite de días con más meses.',
   },
   {
     name: 'Capacidad de tanque supuesta',
