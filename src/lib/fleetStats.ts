@@ -624,8 +624,8 @@ export function insights(
       out.push({
         sev: 'warning',
         area: 'Auditoría',
-        title: `${x.name}: ${x.rejected} lecturas de odómetro descartadas`,
-        detail: 'Cargas con km inconsistente (tipeo o dato falso). Conviene capacitar o controlar al cargar en el surtidor.',
+        title: `${x.name}: ${x.rejected} cargas con km inválido`,
+        detail: 'Cargas con km inconsistente: puede ser un tipeo del playero o que no se informó el km al cargar. Reforzar el pedido de decir el km del tablero y revisar el ticket.',
       })
     );
   // Cargas en vehículo no asignado

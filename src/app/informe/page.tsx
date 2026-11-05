@@ -463,12 +463,13 @@ export default function Informe() {
 
       <Section
         title="🧾 Calidad de los km declarados en las estaciones"
-        hint="En el surtidor se digita el km del tablero. Cuando se carga un número inventado o incompleto, ese dato se descarta y no sirve para controlar consumo ni mantenimiento."
+        hint="En el surtidor el playero digita el km del tablero que le informa el chofer. Cuando el km no se informa o se tipea mal (número inventado, incompleto), ese dato se descarta y no sirve para controlar consumo ni mantenimiento. El error puede ser del playero o de la falta de aviso: no implica culpa del chofer."
       >
         <div style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 12, marginBottom: 12, color: INK }}>
-          <b>📢 Aviso para todos los choferes:</b> al cargar combustible, decí SIEMPRE al playero el kilometraje exacto que marca el
-          tablero (mirá el odómetro, no de memoria ni un número aproximado). Con el km correcto controlamos el consumo, no se
-          pasa ningún service y se evitan sospechas. Una carga con el km mal dicho cuenta como dato inválido.
+          <b>📢 Aviso para todos los choferes:</b> al cargar combustible, decile SIEMPRE al playero el kilometraje exacto que marca el
+          tablero (mirá el odómetro, no de memoria ni un número aproximado) y <b>controlá en el ticket que figure ese km antes de
+          irte</b>. Con el km correcto controlamos el consumo y no se pasa ningún service. Una carga con el km mal dicho o mal tipeado
+          cuenta como dato inválido.
         </div>
         <p style={{ margin: '0 0 8px' }}>
           GPS vs odómetro: en el mes, el odómetro marca <b>{bias.pct === null ? '—' : `${bias.pct > 0 ? '+' : ''}${f1(bias.pct)} %`}</b> respecto
@@ -479,7 +480,7 @@ export default function Informe() {
           <>
             <div className="cards" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))' }}>
               <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Por chofer</div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Por chofer (a nombre de quién quedó la carga)</div>
                 <div className="tw">
                   <table>
                     <thead>
