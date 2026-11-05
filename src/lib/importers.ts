@@ -415,12 +415,26 @@ export function useImporters() {
       });
     });
     const alerts: string[] = [];
+    // Capacidad estimada del tanque = mayor carga vista del vehículo (mínimo 40 L)
+    const capCache = new Map<string, number>();
+    const capOf = (vid: string) => {
+      let c = capCache.get(vid);
+      if (c === undefined) {
+        c = Math.max(
+          40,
+          ...fuel_loads.filter((f) => f.vehicle_id === vid && isFuel(f.product)).map((f) => Number(f.liters) || 0),
+          ...L.filter((x) => byPlate.get(x.pt)?.id === vid && isFuel(x.prod)).map((x) => x.lit || 0)
+        );
+        capCache.set(vid, c);
+      }
+      return c;
+    };
     /**
      * Valida una lectura nueva contra la última lectura confiable (ancla) y el GPS:
      *  - lectura posterior al ancla: ancla + GPS del tramo (si hay GPS hasta esa fecha), o tope de plausibilidad;
      *  - lectura anterior al ancla (remitos tardíos, archivos viejos): ancla − GPS del tramo, o plausibilidad hacia atrás.
      */
-    const validate = (vid: string, plate: string, fecha: string, odo: number) => {
+    const validate = (vid: string, plate: string, fecha: string, odo: number, litros: number) => {
       const a = anchor.get(vid);
       if (!a) return true; // primera lectura del vehículo: se acepta y queda como ancla
       const lg = lastGpsDate(trips, vid);
@@ -432,6 +446,9 @@ export function useImporters() {
         }
         return odo > 0 && odo <= a.km + 300 && odo >= a.km - (dd * 700 + 1000);
       }
+      // Regla física: con el combustible disponible (esta carga + lo que cabe en el tanque) no se pueden recorrer más de
+      // (litros + capacidad) / 3,5 L/100 km. Descarta tipeos con saltos imposibles (p. ej. 2.400 km con 20 L).
+      if (odo - a.km > (litros + capOf(vid)) / 0.035) return false;
       if (!lg || lg < fecha) return okOdo(a.km, a.date, fecha, odo); // GPS aún sin cargar: se audita al subir Gestya
       // Rango posible de GPS entre la lectura de referencia y esta (la carga no tiene hora: ver gpsRange)
       const rg = gpsRange(trips, vid, a.date, fecha);
@@ -460,7 +477,7 @@ export function useImporters() {
       else haveKey.add([v.id, x.fecha, liters, amount].join('|'));
       const st = state.get(v.id)!;
       const odo = isNaN(x.odo) ? null : Math.round(x.odo);
-      const good = odo !== null && isFuel(x.prod) && validate(v.id, x.pt, x.fecha, odo);
+      const good = odo !== null && isFuel(x.prod) && validate(v.id, x.pt, x.fecha, odo, liters);
       if (odo !== null && !good && isFuel(x.prod)) bad++;
       if (good && (!st.odoDate || x.fecha >= st.odoDate)) {
         st.odo = odo;

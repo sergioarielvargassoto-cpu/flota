@@ -31,6 +31,13 @@ const median = (a: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
+/**
+ * Margen de desvío de consumo aceptable según el tipo de vehículo. Septiembre: utilitarios 9,3–10,1 L/100 (muy parejos),
+ * camionetas 10,9–13,3, camiones 19,6–24,0. Valores provisionales: recalibrar cuando haya más meses de datos.
+ */
+export const typeBand = (type: string | null | undefined): number =>
+  ({ Utilitario: 0.15, Auto: 0.15, Camioneta: 0.2, Furgón: 0.2, Camión: 0.3 } as Record<string, number>)[type ?? ''] ?? 0.25;
+
 export const monthKey = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
 export const monthRange = (key: string) => {
   const [y, m] = key.split('-').map(Number);
@@ -231,7 +238,7 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
       }
       r.l100Ref = ref;
       r.l100Dev = ref && r.l100 ? ((r.l100 - ref) / ref) * 100 : null;
-      r.l100Signif = !!(ref && r.l100 && r.l100Band !== null && Math.abs(r.l100 - ref) > Math.max(0.25 * ref, r.l100Band));
+      r.l100Signif = !!(ref && r.l100 && r.l100Band !== null && Math.abs(r.l100 - ref) > Math.max(typeBand(r.v.type) * ref, r.l100Band));
     });
   }
   return rows;
@@ -255,10 +262,12 @@ export type DriverMonth = {
   rejected: number;
   finesCount: number;
   finesAmount: number;
+  trust: Trust;
 };
 
 export function driverMonth(d: Data, key: string): DriverMonth[] {
   const { from, to } = monthRange(key);
+  const trust = driverTrust(d);
   const byName = new Map(d.drivers.map((x) => [norm(x.name), x]));
   const vMap = new Map(d.vehicles.map((v) => [v.id, v]));
   const out = new Map<string, DriverMonth & { _v: Set<string>; _s: Set<string>; _d: Set<string>; _p: Map<string, number> }>();
@@ -285,6 +294,7 @@ export function driverMonth(d: Data, key: string): DriverMonth[] {
         rejected: 0,
         finesCount: 0,
         finesAmount: 0,
+        trust: { level: 'sin historial', validPct: 0, loads: 0, lo: 0, hi: 100 } as Trust,
         _v: new Set(),
         _s: new Set(),
         _d: new Set(),
@@ -365,6 +375,7 @@ export function driverMonth(d: Data, key: string): DriverMonth[] {
         rejected: r.rejected,
         finesCount: r.finesCount,
         finesAmount: r.finesAmount,
+        trust: trustOf(trust, r.name),
       };
     })
     .filter((r) => r.fills > 0 || r.finesCount > 0)
@@ -448,6 +459,48 @@ export function totals(rows: VehicleMonth[]): FleetTotals {
 
 /* ───────────────────────── Auditoría entre cargas ───────────────────────── */
 
+export type Trust = { level: 'alta' | 'media' | 'baja' | 'sin historial'; validPct: number; loads: number; lo: number; hi: number };
+/** Intervalo de confianza de Wilson (95 %) de una proporción: con pocas cargas el porcentaje solo es engañoso. */
+const wilson = (k: number, n: number): [number, number] => {
+  const z = 1.96,
+    p = k / n,
+    den = 1 + (z * z) / n,
+    c = (p + (z * z) / (2 * n)) / den,
+    h = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / den;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+};
+/**
+ * Historial de km válidos por conductor (todas las cargas), con intervalo de confianza.
+ * Alta: ≥8 cargas, ≥90 % válidas y piso del intervalo ≥65 %. Baja: ≥5 cargas y techo del intervalo ≤80 % (estadísticamente por debajo del resto).
+ * Sin historial: <4 cargas. Media: el resto (no se puede afirmar nada concluyente).
+ */
+export function driverTrust(d: Data): Map<string, Trust> {
+  const m = new Map<string, { loads: number; ok: number }>();
+  d.fuel_loads.forEach((f) => {
+    if (!isFuelProduct(f.product) || f.km_raw === null || f.km_raw === undefined) return;
+    const k = norm(f.driver_name);
+    const r = m.get(k) ?? { loads: 0, ok: 0 };
+    r.loads++;
+    if (f.km !== null && f.km !== undefined) r.ok++;
+    m.set(k, r);
+  });
+  const out = new Map<string, Trust>();
+  m.forEach((r, k) => {
+    const validPct = (r.ok / r.loads) * 100;
+    const [lo, hi] = wilson(r.ok, r.loads);
+    out.set(k, {
+      loads: r.loads,
+      validPct,
+      lo: lo * 100,
+      hi: hi * 100,
+      level: r.loads < 4 ? 'sin historial' : r.loads >= 8 && validPct >= 90 && lo >= 0.65 ? 'alta' : r.loads >= 5 && hi <= 0.8 ? 'baja' : 'media',
+    });
+  });
+  return out;
+}
+export const trustOf = (t: Map<string, Trust>, name: string | null | undefined): Trust =>
+  t.get(norm(name)) ?? { level: 'sin historial', validPct: 0, loads: 0, lo: 0, hi: 100 };
+
 export type PairRow = {
   vehicle: Vehicle;
   prev: Fuel;
@@ -463,6 +516,7 @@ export type PairRow = {
   gpsDiff: number | null; // 0 = dentro del rango de GPS
   l100: number | null; // indicativo: litros de la carga que cierra el tramo / km (no sabemos con cuánto salió)
   flags: string[];
+  trust: Trust; // confiabilidad histórica del conductor que hizo la carga
 };
 
 /**
@@ -472,6 +526,7 @@ export type PairRow = {
  */
 export function fuelPairs(d: Data, from: string, to: string): PairRow[] {
   const out: PairRow[] = [];
+  const trust = driverTrust(d);
   for (const v of d.vehicles) {
     if (v.status === 'Baja') continue;
     const all = acceptedLoads(d, v.id).map((f) => ({ f, odo: f.km as number }));
@@ -504,7 +559,15 @@ export function fuelPairs(d: Data, from: string, to: string): PairRow[] {
       }
       const l100 = dKm > 0 ? ((Number(b.f.liters) || 0) / dKm) * 100 : null;
       if (l100 !== null && dKm > 150 && (l100 < 4 || l100 > 30)) flags.push('Consumo implícito fuera de rango en este tramo (indicativo)');
-      out.push({ vehicle: v, prev: a.f, cur: b.f, prevKm: a.odo, curKm: b.odo, dKm, days, sameDay, gpsKm, gpsMin, gpsMax, gpsDiff, l100, flags });
+      const tr = trustOf(trust, b.f.driver_name);
+      if (gpsDiff) {
+        // Misma discrepancia, distinta lectura según quién cargó: el historial del conductor orienta dónde buscar
+        if (tr.level === 'alta')
+          flags.push(`Conductor con historial confiable (${tr.loads - Math.round((tr.loads * (100 - tr.validPct)) / 100)} de ${tr.loads} cargas con km válido): conviene revisar el GPS o qué pasó ese día antes de dudar de la lectura`);
+        else if (tr.level === 'baja')
+          flags.push(`Conductor con muchas lecturas inválidas (solo ${Math.round(tr.loads * tr.validPct / 100)} de ${tr.loads} válidas, por debajo del resto de forma estadísticamente clara): probable error de carga del km`);
+      }
+      out.push({ vehicle: v, prev: a.f, cur: b.f, prevKm: a.odo, curKm: b.odo, dKm, days, sameDay, gpsKm, gpsMin, gpsMax, gpsDiff, l100, flags, trust: tr });
     }
   }
   return out.sort((a, b) => b.cur.date.localeCompare(a.cur.date));
@@ -615,7 +678,7 @@ export function insights(
     );
   // Consumo implausiblemente bajo: suele indicar odómetro sobreestimado o combustible cargado para otro fin
   cur
-    .filter((r) => r.l100Signif && (r.l100Dev as number) < -30 && (r.odoKm ?? 0) > 300)
+    .filter((r) => r.l100Signif && (r.l100Dev as number) < 0 && (r.odoKm ?? 0) > 300)
     .forEach((r) =>
       out.push({
         sev: 'warning',

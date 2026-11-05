@@ -431,6 +431,7 @@ export default function Informe() {
                 <th>Estac.</th>
                 <th>Carga en vehíc. ajeno</th>
                 <th>Lecturas descart.</th>
+                <th>Confiabilidad del km (historial)</th>
                 <th>Multas</th>
               </tr>
             </thead>
@@ -452,6 +453,18 @@ export default function Informe() {
                   <td>{x.stations}</td>
                   <td>{x.notAssigned || '—'}</td>
                   <td>{x.rejected ? <b style={{ color: '#a32424' }}>⚠ {x.rejected}</b> : '—'}</td>
+                  <td>
+                    {x.trust.level === 'sin historial' ? (
+                      <span className="muted">pocas cargas</span>
+                    ) : (
+                      <span title={`Intervalo de confianza 95 %: ${Math.round(x.trust.lo)}–${Math.round(x.trust.hi)} % de km válidos`}>
+                        {x.trust.level === 'alta' ? '✔ Alta' : x.trust.level === 'baja' ? '⚠ Baja' : 'Media'}{' '}
+                        <span className="muted">
+                          ({Math.round((x.trust.loads * x.trust.validPct) / 100)}/{x.trust.loads})
+                        </span>
+                      </span>
+                    )}
+                  </td>
                   <td>{x.finesCount ? `${x.finesCount} (${mon(x.finesAmount)})` : '—'}</td>
                 </tr>
               ))}
