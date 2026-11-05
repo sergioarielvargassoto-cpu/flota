@@ -19,7 +19,7 @@ const days = (a: string, b: string) => Math.round((+new Date(b + 'T00:00:00') - 
 const slackOf = (s: TReading['src']) => (s === 'estación' ? 0 : TALLER_ROUND_KM);
 
 /** ¿El par de lecturas (en orden cronológico) es compatible? */
-function pairOk(a: TReading, b: TReading, trips: TripLite[], vid: string, gps: { ok: boolean; first: string | null; last: string | null }): boolean {
+export function pairOk(a: TReading, b: TReading, trips: TripLite[], vid: string, gps: { ok: boolean; first: string | null; last: string | null }): boolean {
   // Cada lectura de taller/manual puede venir redondeada hacia un lado distinto: el margen del par es la SUMA
   const slack = slackOf(a.src) + slackOf(b.src);
   const delta = b.km - a.km;

@@ -8,8 +8,11 @@ import { gpsRange, outsideRange } from '@/lib/kmAudit';
 import { readingDateOf, readingsOf } from '@/lib/kmAnchor';
 import { trajectoryOutliers } from '@/lib/kmTrajectory';
 import { gpsReliability } from '@/lib/kmAudit';
+import { explainCase, type Explanation } from '@/lib/kmExplain';
+import { explainConsumption, explainGps, explainInvalidReading, explainPair } from '@/lib/kmExplainCases';
+import { caseNoteFor } from '@/lib/kmCases';
 import { PARAM_DOCS, STALE_READING_DAYS, UNCOVERED_GPS_KM_PER_DAY } from '@/lib/params';
-import { fuelPairs, monthLabel, monthRange, vehicleMonth, availableMonths, type Data } from '@/lib/fleetStats';
+import { fuelPairs, invalidReadings, monthLabel, monthRange, vehicleMonth, availableMonths, type Data } from '@/lib/fleetStats';
 
 type Reading = { date: string; km: number; src: string; who: string; rejected?: boolean };
 const SRC_LABEL: Record<string, string> = {
@@ -22,6 +25,28 @@ const localDate = (iso: string) => new Date(iso).toLocaleDateString('en-CA');
 const daysBetween = (a: string, b: string) =>
   Math.round((+new Date(b + 'T00:00:00') - +new Date(a + 'T00:00:00')) / 864e5);
 
+/** Muestra una explicación automática (qué vio el sistema / qué pudo pasar / qué hacer / efecto). */
+function ExplainView({ e }: { e: Explanation }) {
+  const block = (title: string, items: string[]) => (
+    <div>
+      <b>{title}</b>
+      <ul style={{ margin: '4px 0 0 18px' }}>
+        {items.map((t, k) => (
+          <li key={k}>{t}</li>
+        ))}
+      </ul>
+    </div>
+  );
+  return (
+    <div style={{ display: 'grid', gap: 8, fontSize: 13, marginTop: 8 }}>
+      {block('Qué vio el sistema', e.seen)}
+      {block('Qué pudo haber pasado (hipótesis)', e.causes)}
+      {block('Qué conviene hacer', e.todo)}
+      {block('Qué efecto tiene', e.impact)}
+    </div>
+  );
+}
+
 export default function AuditoriaKm() {
   const { vehicles, trips, fuel_loads, km_history, settings, drivers, repairs, maintenance, infractions } = useData();
   const [selM, setSelM] = useState('');
@@ -32,7 +57,7 @@ export default function AuditoriaKm() {
   );
   // Lecturas de cualquier fuente que no encajan con las vecinas (todo el historial): errores de tipeo en estaciones, talleres o cargas a mano
   const offTrack = useMemo(() => {
-    const out: { plate: string; date: string; km: number; src: string; level: string; agree: number; of: number; lo?: number; hi?: number; reason: string }[] = [];
+    const out: { plate: string; vehicleId: string; date: string; km: number; src: string; label?: string; level: string; agree: number; of: number; lo?: number; hi?: number; reason: string; explain: Explanation; note: ReturnType<typeof caseNoteFor> }[] = [];
     for (const v of vehicles) {
       if (v.status === 'Baja') continue;
       const rd = readingsOf(v.id, { fuel_loads, km_history, maintenance, repairs });
@@ -44,11 +69,35 @@ export default function AuditoriaKm() {
       );
       for (const f of found) {
         const [date, km, src] = f.key.split('|');
-        out.push({ plate: v.plate, date, km: Number(km), src, level: f.level, agree: f.agree, of: f.of, lo: f.expectedLo, hi: f.expectedHi, reason: f.reason });
+        const kmN = Number(km);
+        const rec = src === 'mantenimiento' ? maintenance.find((m) => m.vehicle_id === v.id && m.date === date && m.km === kmN) : src === 'reparación' ? repairs.find((r) => r.vehicle_id === v.id && r.date === date && r.km === kmN) : undefined;
+        const label = rec ? ('type' in rec ? (rec as { type: string }).type : (rec as { description: string }).description) : undefined;
+        const others = rd.filter((r) => !(r.date === date && r.km === kmN && r.src === src)).map((r) => ({ date: r.date, km: r.km, src: r.src }));
+        const explain = explainCase({
+          plate: v.plate,
+          date,
+          km: kmN,
+          src: src as 'estación' | 'manual' | 'mantenimiento' | 'reparación',
+          label,
+          level: f.level,
+          agree: f.agree,
+          of: f.of,
+          neighbors: others,
+          expectedLo: f.expectedLo,
+          expectedHi: f.expectedHi,
+          trips,
+          vehicleId: v.id,
+          gpsReliable: gpsReliability(v.id, fuel_loads, trips).reliable,
+          serviceKm: settings.service_km,
+          lastServiceKm: v.last_service_km,
+          currentKm: v.km,
+          isService: src === 'mantenimiento' && /service/i.test(label ?? ''),
+        });
+        out.push({ plate: v.plate, vehicleId: v.id, date, km: kmN, src, label, level: f.level, agree: f.agree, of: f.of, lo: f.expectedLo, hi: f.expectedHi, reason: f.reason, explain, note: caseNoteFor(v.plate, date, kmN) });
       }
     }
     return out.sort((a, b) => b.date.localeCompare(a.date));
-  }, [vehicles, trips, fuel_loads, km_history, maintenance, repairs]);
+  }, [vehicles, trips, fuel_loads, km_history, maintenance, repairs, settings]);
   const fuelMonths = useMemo(
     () => [...new Set(fuel_loads.map((f) => f.date.slice(0, 7)))].sort().reverse(),
     [fuel_loads]
@@ -59,6 +108,79 @@ export default function AuditoriaKm() {
     const { from, to } = monthRange(mKey);
     return { pairs: fuelPairs(fleet, from, to), wins: vehicleMonth(fleet, mKey) };
   }, [fleet, mKey]);
+  // Casos del mes elegido, cada uno con su explicación automática (lecturas inválidas, tramos que no cierran, consumo, GPS)
+  const monthCases = useMemo(() => {
+    if (!mKey) return { invalid: [], pairs: [], cons: [], gps: [] };
+    const { from, to } = monthRange(mKey);
+    const ref = { fuel_loads, km_history, maintenance, repairs };
+    const validByVeh = new Map(vehicles.map((v) => [v.id, readingsOf(v.id, ref).map((r) => ({ date: r.date, km: r.km, src: r.src as string }))]));
+    const fleet = vehicles.flatMap((v) => (validByVeh.get(v.id) ?? []).filter((r) => r.src === 'estación').map((r) => ({ plate: v.plate, date: r.date, km: r.km })));
+    const invalid = invalidReadings(fleet0(), from, to).map((r) => ({
+      r,
+      e: explainInvalidReading({
+        plate: r.plate,
+        date: r.load.date,
+        declared: r.declared,
+        expected: r.expected,
+        station: r.station,
+        driver: r.driver,
+        liters: Number(r.load.liters),
+        neighbors: validByVeh.get(r.load.vehicle_id) ?? [],
+        fleet: fleet.filter((x) => x.plate !== r.plate),
+      }),
+    }));
+    function fleet0(): Data {
+      return { vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions };
+    }
+    const pairs = fuelPairs(fleet0(), from, to)
+      .filter((p) => p.sameDay || (p.gpsDiff !== null && p.gpsDiff !== 0))
+      .map((p) => ({
+        p,
+        e: explainPair({
+          plate: p.vehicle.plate,
+          prev: { date: p.prev.date, km: p.prevKm },
+          cur: { date: p.cur.date, km: p.curKm },
+          dKm: p.dKm,
+          gpsMin: p.gpsMin,
+          gpsMax: p.gpsMax,
+          gpsDiff: p.gpsDiff,
+          sameDay: p.sameDay,
+          others: (validByVeh.get(p.vehicle.id) ?? []).filter((x) => !(x.date === p.prev.date && x.km === p.prevKm) && !(x.date === p.cur.date && x.km === p.curKm)),
+          trips,
+          vehicleId: p.vehicle.id,
+          gpsReliable: gpsReliability(p.vehicle.id, fuel_loads, trips).reliable,
+        }),
+      }));
+    const cons = vehicleMonth(fleet0(), mKey)
+      .filter((w) => w.l100Signif && w.l100 !== null && w.l100Ref !== null && w.l100Dev !== null)
+      .map((w) => ({
+        w,
+        e: explainConsumption({
+          plate: w.v.plate,
+          l100: w.l100 as number,
+          ref: w.l100Ref as number,
+          devPct: w.l100Dev as number,
+          band: w.l100Band,
+          odoKm: w.odoKm,
+          gpsMin: w.gpsWinMin,
+          gpsMax: w.gpsWinMax,
+          winLiters: w.winLiters,
+          rejected: w.rejected,
+          fills: w.fills,
+          tankCap: w.tankCap,
+          drivers: [...new Set(fuel_loads.filter((f) => f.vehicle_id === w.v.id && f.date >= from && f.date < to).map((f) => f.driver_name ?? '').filter(Boolean))],
+        }),
+      }));
+    const gps = vehicles
+      .filter((v) => v.status !== 'Baja')
+      .map((v) => ({ v, g: gpsReliability(v.id, fuel_loads, trips) }))
+      .filter((x) => !x.g.reliable)
+      .map(({ v, g }) => {
+        const vt = trips.filter((t) => t.vehicle_id === v.id);
+        return { v, e: explainGps({ plate: v.plate, ratio: g.ratio, n: g.n, zeroDays: vt.filter((t) => Number(t.km_calc) < 5).length, totalDays: vt.length }) };
+      });
+    return { invalid, pairs, cons, gps };
+  }, [mKey, vehicles, drivers, fuel_loads, km_history, maintenance, repairs, trips, infractions]);
 
   const { flags, stale, services, discarded } = useMemo(() => {
     const today = new Date().toLocaleDateString('en-CA');
@@ -208,6 +330,78 @@ export default function AuditoriaKm() {
       ) : (
         <div className="empty">✔ Todas las lecturas encajan con las de su vehículo.</div>
       )}
+      {offTrack.length > 0 && (
+        <>
+          <h4 style={{ margin: '16px 0 8px' }}>🔎 Detalle de cada caso: qué vio el sistema, qué pudo pasar y qué hacer</h4>
+          <p className="muted">
+            Las causas son <b>hipótesis</b> ordenadas según lo que muestran los datos (números redondos, dígitos de más o de menos, fecha equivocada,
+            km “programado” del service). Se confirman con el comprobante original. Esta explicación se genera sola para cualquier caso parecido en el futuro.
+          </p>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {offTrack.map((o, i) => (
+              <div key={i} style={{ background: '#fff', border: '1px solid var(--b)', borderRadius: 10, padding: 14 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  <Link href={`/vehiculos/${o.vehicleId}`}>{o.plate}</Link> · {o.level === 'atípica' ? '⚠ Atípica' : '⚠ Dudosa'} · {num(o.km)} km el {fd(o.date)} ({o.src}
+                  {o.label ? `: ${o.label}` : ''})
+                </div>
+                {o.note && (
+                  <div style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 10, margin: '6px 0', fontSize: 13 }}>
+                    <b>📝 Aclaración del {o.note.by.toLowerCase()} ({fd(o.note.on)}):</b> {o.note.note}
+                  </div>
+                )}
+                <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
+                  <div>
+                    <b>Qué vio el sistema</b>
+                    <ul style={{ margin: '4px 0 0 18px' }}>{o.explain.seen.map((t, k) => <li key={k}>{t}</li>)}</ul>
+                  </div>
+                  <div>
+                    <b>Qué pudo haber pasado (hipótesis)</b>
+                    <ul style={{ margin: '4px 0 0 18px' }}>{o.explain.causes.map((t, k) => <li key={k}>{t}</li>)}</ul>
+                  </div>
+                  <div>
+                    <b>Qué conviene hacer</b>
+                    <ul style={{ margin: '4px 0 0 18px' }}>{o.explain.todo.map((t, k) => <li key={k}>{t}</li>)}</ul>
+                  </div>
+                  <div>
+                    <b>Qué efecto tiene mientras no se corrija</b>
+                    <ul style={{ margin: '4px 0 0 18px' }}>{o.explain.impact.map((t, k) => <li key={k}>{t}</li>)}</ul>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <h3>🧾 Casos del mes explicados ({mKey ? monthLabel(mKey) : '—'})</h3>
+      <p className="muted">
+        Cada anomalía que detecta el sistema trae su explicación automática: qué vio, qué pudo haber pasado, qué hacer y qué efecto tiene. Funciona para cualquier caso
+        nuevo del mismo tipo (el mes se elige más abajo, en “Auditoría entre cargas”). Las causas son hipótesis a confirmar con el comprobante original.
+      </p>
+      {[
+        { title: 'Lecturas de estación inválidas', items: monthCases.invalid.map((x, i) => ({ k: 'i' + i, head: `${x.r.plate} · ${fd(x.r.load.date)} · declararon ${num(x.r.declared)} km`, e: x.e })) },
+        { title: 'Tramos entre cargas que no cierran con el GPS (o con cargas el mismo día)', items: monthCases.pairs.map((x, i) => ({ k: 'p' + i, head: `${x.p.vehicle.plate} · ${fd(x.p.prev.date)} → ${fd(x.p.cur.date)} · odómetro ${num(x.p.dKm)} km`, e: x.e })) },
+        { title: 'Consumo fuera de lo esperado', items: monthCases.cons.map((x, i) => ({ k: 'c' + i, head: `${x.w.v.plate} · ${(x.w.l100 as number).toLocaleString('es-AR', { maximumFractionDigits: 1 })} L/100 km (${(x.w.l100Dev as number) > 0 ? '+' : ''}${Math.round(x.w.l100Dev as number)} %)`, e: x.e })) },
+        { title: 'GPS poco confiable', items: monthCases.gps.map((x, i) => ({ k: 'g' + i, head: `${x.v.plate}`, e: x.e })) },
+      ].map((sec) => (
+        <details key={sec.title} style={{ margin: '8px 0' }} open={sec.items.length > 0 && sec.items.length <= 3}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+            {sec.title} ({sec.items.length})
+          </summary>
+          {sec.items.length ? (
+            <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+              {sec.items.map((it) => (
+                <details key={it.k} style={{ background: '#fff', border: '1px solid var(--b)', borderRadius: 8, padding: '8px 12px' }}>
+                  <summary style={{ cursor: 'pointer' }}>{it.head}</summary>
+                  <ExplainView e={it.e} />
+                </details>
+              ))}
+            </div>
+          ) : (
+            <div className="empty">✔ Sin casos de este tipo.</div>
+          )}
+        </details>
+      ))}
 
       <h3>⚠ Lecturas que no coinciden con el GPS</h3>
       {flags.length ? (
