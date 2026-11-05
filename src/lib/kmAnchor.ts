@@ -8,7 +8,7 @@
  */
 import type { Fuel, KmHistory, Maint, Repair } from './types';
 
-export type Reading = { date: string; km: number; src: 'estación' | 'manual' | 'mantenimiento' | 'reparación'; at?: string };
+export type Reading = { date: string; km: number; src: 'estación' | 'manual' | 'mantenimiento' | 'reparación'; at?: string; knownAt?: string };
 /** Desempate entre lecturas del MISMO día: lo cargado a mano manda sobre el taller, y el taller sobre la estación. */
 const RANK = { estación: 1, reparación: 2, mantenimiento: 2, manual: 3 } as const;
 
@@ -25,7 +25,7 @@ export function readingsOf(
   const out: Reading[] = [];
   for (const f of d.fuel_loads)
     if (f.vehicle_id === vehicleId && f.km !== null && f.km !== undefined && isFuelProduct(f.product))
-      out.push({ date: f.date, km: f.km, src: 'estación' });
+      out.push({ date: f.date, km: f.km, src: 'estación', knownAt: (f as { created_at?: string }).created_at ?? f.date + 'T00:00:00Z' });
   for (const h of d.km_history) {
     if (h.vehicle_id !== vehicleId) continue;
     const i = h.changed_by.indexOf(':');
@@ -33,14 +33,21 @@ export function readingsOf(
     // gps: calculado. combustible: ya cuenta como carga de estación. registro: viene de un mantenimiento/reparación/etc.,
     // que ya se lee con su fecha REAL (la del historial es la fecha en que se cargó, no la de la lectura).
     if (src === 'gps' || src === 'combustible' || src === 'registro') continue;
-    out.push({ date: readingDateOf(h), km: h.km, src: 'manual', at: h.recorded_at });
+    out.push({ date: readingDateOf(h), km: h.km, src: 'manual', at: h.recorded_at, knownAt: h.recorded_at });
   }
   for (const m of d.maintenance)
-    if (m.vehicle_id === vehicleId && m.km !== null && m.km !== undefined) out.push({ date: m.date, km: m.km, src: 'mantenimiento' });
+    if (m.vehicle_id === vehicleId && m.km !== null && m.km !== undefined) out.push({ date: m.date, km: m.km, src: 'mantenimiento', knownAt: (m as { created_at?: string }).created_at ?? m.date + 'T00:00:00Z' });
   for (const r of d.repairs)
-    if (r.vehicle_id === vehicleId && r.km !== null && r.km !== undefined) out.push({ date: r.date, km: r.km, src: 'reparación' });
+    if (r.vehicle_id === vehicleId && r.km !== null && r.km !== undefined) out.push({ date: r.date, km: r.km, src: 'reparación', knownAt: (r as { created_at?: string }).created_at ?? r.date + 'T00:00:00Z' });
   // Mismo día: prioridad por origen; entre cargas manuales, la ÚLTIMA cargada (si no, la de mayor km)
-  return out.sort(
+  // Un km 0 (o negativo) cargado a mano es un marcador de "pendiente de verificar": no es una lectura y deja SIN EFECTO todo lo que se conocía
+  // hasta ese momento (el responsable volverá a cargar el km real). Lo que se registre después, aunque tenga fecha anterior, sí cuenta.
+  const manual = d.km_history.filter((h) => h.vehicle_id === vehicleId && !/^(gps|combustible|registro):/.test(h.changed_by));
+  const marker = manual.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at)).pop();
+  const cut = marker && marker.km <= 0 ? marker.recorded_at : null;
+  return out
+    .filter((r) => r.km > 0 && (!cut || new Date(r.knownAt ?? 0).getTime() > new Date(cut).getTime()))
+    .sort(
     (a, b) =>
       a.date.localeCompare(b.date) ||
       RANK[a.src] - RANK[b.src] ||

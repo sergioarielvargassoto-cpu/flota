@@ -2,7 +2,7 @@
  * Auditoría de odómetros: el GPS (km reportados de Gestya) controla lo que se declara en las estaciones.
  * Entre dos lecturas del tablero, la diferencia debe coincidir con los km que registró el GPS en ese lapso.
  */
-import { RANGE_TOL_ABS_KM, RANGE_TOL_PCT } from './params';
+import { GPS_RELIABLE_MAX, GPS_RELIABLE_MIN, RANGE_TOL_ABS_KM, RANGE_TOL_PCT } from './params';
 
 export type TripLite = { vehicle_id: string; date: string; km_calc: number | string };
 
@@ -64,4 +64,38 @@ export function outsideRange(delta: number, r: { min: number; max: number }): nu
   if (delta < r.min - tol) return Math.round(delta - r.min);
   if (delta > r.max + tol) return Math.round(delta - r.max);
   return 0;
+}
+
+/**
+ * ¿El GPS de este vehículo es confiable para auditar su odómetro? Se mide con SUS PROPIOS tramos limpios (entre lecturas de estación
+ * válidas consecutivas): km de odómetro ÷ punto medio del rango de GPS. Confiable si está entre 0,75 y 1,3 (septiembre: la flota dio 0,99;
+ * el Sandero, con GPS intermitente, dio un cociente enorme). Con menos de 2 tramos no hay evidencia en contra y se asume confiable.
+ */
+export function gpsReliability(
+  vehicleId: string,
+  loads: { vehicle_id: string; date: string; km: number | null; product: string | null }[],
+  trips: TripLite[]
+): { reliable: boolean; ratio: number | null; n: number } {
+  const vt = trips.filter((t) => t.vehicle_id === vehicleId);
+  if (!vt.length) return { reliable: true, ratio: null, n: 0 };
+  const first = vt.reduce((m, t) => (t.date < m ? t.date : m), vt[0].date);
+  const last = vt.reduce((m, t) => (t.date > m ? t.date : m), vt[0].date);
+  const L = loads
+    .filter((f) => f.vehicle_id === vehicleId && f.km !== null && !/azul|adblue/i.test(f.product ?? ''))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.km as number) - (b.km as number));
+  let odo = 0,
+    mid = 0,
+    n = 0;
+  for (let i = 1; i < L.length; i++) {
+    const a = L[i - 1],
+      b = L[i];
+    if (a.date === b.date || a.date < first || b.date > last) continue;
+    const r = gpsRange(vt, vehicleId, a.date, b.date);
+    odo += (b.km as number) - (a.km as number);
+    mid += (r.min + r.max) / 2;
+    n++;
+  }
+  if (n < 2) return { reliable: true, ratio: null, n };
+  const ratio = mid > 0 ? odo / mid : Infinity;
+  return { reliable: ratio >= GPS_RELIABLE_MIN && ratio <= GPS_RELIABLE_MAX, ratio: Number.isFinite(ratio) ? ratio : null, n };
 }

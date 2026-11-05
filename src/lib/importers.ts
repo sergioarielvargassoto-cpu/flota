@@ -2,8 +2,9 @@
 import { useData } from './data';
 import { sb } from './supabase';
 import { recordKmChange } from './history';
-import { gpsRange, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
-import { gpsCoversFrom, lastReading } from './kmAnchor';
+import { gpsRange, gpsReliability, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
+import { gpsCoversFrom, lastReading, readingDateOf } from './kmAnchor';
+import { validateReading, type Anchor } from './kmValidate';
 import { DEFAULT_TANK_L, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
@@ -396,10 +397,18 @@ export function useImporters() {
     };
     // Ancla = última lectura REAL de tablero (carga de estación válida, km a mano, mantenimiento o reparación).
     // El km "calculado con GPS" no es una lectura: nunca se usa como ancla si hay una lectura real.
-    const anchor = new Map<string, { date: string; km: number }>();
+    const anchor = new Map<string, Anchor>();
     byPlate.forEach((v) => {
       const r = lastReading(v.id, ref);
-      if (r) anchor.set(v.id, { date: r.date, km: r.km });
+      if (r) anchor.set(v.id, { date: r.date, km: r.km, src: r.src });
+    });
+    // Vehículos con el km "pendiente de verificar" (último km cargado a mano = 0): el combustible NO pisa su km hasta que el responsable lo cargue
+    const pendingKm = new Set<string>();
+    byPlate.forEach((v) => {
+      const manual = km_history
+        .filter((h) => h.vehicle_id === v.id && !/^(gps|combustible|registro):/.test(h.changed_by))
+        .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+      if (manual.length && manual[manual.length - 1].km === 0) pendingKm.add(v.id);
     });
     const state = new Map<string, St>();
     byPlate.forEach((v) => {
@@ -430,33 +439,25 @@ export function useImporters() {
       }
       return c;
     };
-    /**
-     * Valida una lectura nueva contra la última lectura confiable (ancla) y el GPS:
-     *  - lectura posterior al ancla: ancla + GPS del tramo (si hay GPS hasta esa fecha), o tope de plausibilidad;
-     *  - lectura anterior al ancla (remitos tardíos, archivos viejos): ancla − GPS del tramo, o plausibilidad hacia atrás.
-     */
-    const validate = (vid: string, plate: string, fecha: string, odo: number, litros: number) => {
-      const a = anchor.get(vid);
-      if (!a) return true; // primera lectura del vehículo: se acepta y queda como ancla
-      const lg = lastGpsDate(trips, vid);
-      if (fecha <= a.date) {
-        const dd = daysBetween(fecha, a.date);
-        if (lg && lg >= a.date) {
-          const rg = gpsRange(trips, vid, fecha, a.date);
-          return outsideRange(a.km - odo, rg) === 0;
-        }
-        return odo > 0 && odo <= a.km + OKODO_BACK_KM && odo >= a.km - (dd * OKODO_KM_PER_DAY + OKODO_BASE_KM);
+    // Confiabilidad del GPS de cada vehículo (con sus propias lecturas buenas): un GPS intermitente no debe descartar lecturas buenas
+    const gpsOkCache = new Map<string, boolean>();
+    const gpsOkOf = (vid: string) => {
+      let g = gpsOkCache.get(vid);
+      if (g === undefined) {
+        g = gpsReliability(vid, fuel_loads, trips).reliable;
+        gpsOkCache.set(vid, g);
       }
-      // Regla física: con el combustible disponible (esta carga + lo que cabe en el tanque) no se pueden recorrer más de
-      // (litros + capacidad) / 3,5 L/100 km. Descarta tipeos con saltos imposibles (p. ej. 2.400 km con 20 L).
-      if (odo - a.km > (litros + capOf(vid)) / (PHYSICAL_MIN_L_PER_100 / 100)) return false;
-      if (!lg || lg < fecha) return okOdo(a.km, a.date, fecha, odo); // GPS aún sin cargar: se audita al subir Gestya
-      // Rango posible de GPS entre la lectura de referencia y esta (la carga no tiene hora: ver gpsRange)
-      const rg = gpsRange(trips, vid, a.date, fecha);
-      const ok = outsideRange(odo - a.km, rg) === 0;
-      if (!ok && alerts.length < 12)
-        alerts.push(`${plate} ${fecha}: declaró ${odo.toLocaleString('es-AR')} (avanzó ${(odo - a.km).toLocaleString('es-AR')} km desde el ${a.date}); el GPS permite entre ${Math.round(rg.min).toLocaleString('es-AR')} y ${Math.round(rg.max).toLocaleString('es-AR')} km`);
-      return ok;
+      return g;
+    };
+    /** Valida una lectura contra la referencia y el GPS (ver kmValidate.ts); registra el motivo si se descarta. */
+    const validate = (vid: string, plate: string, fecha: string, odo: number, litros: number) => {
+      const a = anchor.get(vid) ?? null;
+      const v = validateReading({ anchor: a, trips, vehicleId: vid, fecha, odo, litros, tankL: capOf(vid), gpsOk: gpsOkOf(vid) });
+      if (!v.ok && alerts.length < 12)
+        alerts.push(
+          `${plate} ${fecha}: declaró ${odo.toLocaleString('es-AR')} (referencia ${a?.km.toLocaleString('es-AR')} del ${a?.date}). ${v.reason}${v.rangeMax !== undefined ? ` (GPS del tramo: entre ${Math.round(v.rangeMin ?? 0).toLocaleString('es-AR')} y ${Math.round(v.rangeMax).toLocaleString('es-AR')} km)` : ''}`
+        );
+      return v.ok;
     };
     const rows: object[] = [];
     let dup = 0,
@@ -484,7 +485,7 @@ export function useImporters() {
         st.odo = odo;
         st.odoDate = x.fecha;
         st.changed = true;
-        anchor.set(v.id, { date: x.fecha, km: odo! });
+        anchor.set(v.id, { date: x.fecha, km: odo!, src: 'estación' });
       }
       if (!st.card && x.tarj) {
         st.card = x.tarj.slice(-6);
@@ -514,7 +515,7 @@ export function useImporters() {
       // km = último odómetro leído + km reportados por GPS posteriores a esa lectura
       let km = st.km,
         kmDate = st.date;
-      if (st.odo !== null && st.odoDate) {
+      if (st.odo !== null && st.odoDate && !pendingKm.has(vid)) {
         const after = trips.filter((t) => t.vehicle_id === vid && t.date > st.odoDate!);
         km = Math.round(st.odo + after.reduce((a, t) => a + Number(t.km_calc || 0), 0));
         kmDate = after.reduce((mx, t) => (t.date > mx ? t.date : mx), st.odoDate);

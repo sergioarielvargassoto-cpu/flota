@@ -10,6 +10,9 @@ export const RANGE_TOL_ABS_KM = 50;
 export const RANGE_TOL_PCT = 0.03;
 /** El GPS se considera "caído" si aun su máximo posible es menos de este porcentaje de lo que marcó el odómetro. */
 export const GPS_DEAD_RATIO = 0.2;
+/** Un GPS es "confiable" para auditar si, en los tramos limpios del vehículo, odómetro ÷ GPS está en este rango. */
+export const GPS_RELIABLE_MIN = 0.75;
+export const GPS_RELIABLE_MAX = 1.3;
 /** Ningún vehículo de la flota gasta menos que esto: base de la regla física (km máximos = (litros + tanque) / este valor). */
 export const PHYSICAL_MIN_L_PER_100 = 3.5;
 /** Capacidad de tanque supuesta si no se conoce (se usa la mayor carga vista si es mayor). */
@@ -50,6 +53,24 @@ export const PARAM_DOCS: ParamDoc[] = [
     value: `el mayor entre ${RANGE_TOL_ABS_KM} km y ${RANGE_TOL_PCT * 100} % del máximo`,
     why: 'El GPS mide casi igual que el odómetro (escala global 0,988 en septiembre) y el tablero redondea. Probado de 0 a 150 km: el resultado no cambia (1 tramo fuera de 26), así que el margen no decide.',
     review: 'Cuando haya ≥6 tramos por vehículo, usar un factor de escala propio de cada uno (hoy varía 0,935–1,086).',
+  },
+  {
+    name: 'Confiabilidad del GPS de cada vehículo',
+    value: `odómetro ÷ GPS entre ${GPS_RELIABLE_MIN} y ${GPS_RELIABLE_MAX} en sus propios tramos limpios (mín. 2 tramos)`,
+    why: 'En septiembre la flota dio entre 0,93 y 1,09. El Sandero (GPS intermitente) dio un cociente enorme: con un GPS así no se puede descartar una lectura de estación, porque el que falla es el GPS. Con menos de 2 tramos no hay evidencia en contra y se asume confiable.',
+    review: 'Recalcular cada mes; revisar el equipo del Sandero.',
+  },
+  {
+    name: 'Referencia aproximada (carga manual o de taller)',
+    value: `margen extra de ${TALLER_ROUND_KM} km al validar lecturas contra ella`,
+    why: 'Los km de taller y los cargados a mano pueden venir redondeados. Prueba con septiembre: si la referencia estuviera desviada 250 km, sin este margen se rechazan lecturas buenas; con él, no.',
+    review: 'Con una referencia exacta (lectura de estación válida) no se aplica.',
+  },
+  {
+    name: 'Km en 0 cargado a mano = "pendiente de verificar"',
+    value: 'deja sin efecto lo conocido hasta ese momento; no se pisa con combustible ni con GPS acumulado',
+    why: 'Cuando el responsable no está seguro del km (p. ej. AI605GB), un 0 evita que el sistema invente un valor. Se reemplaza al cargar el km real con su fecha.',
+    review: '—',
   },
   {
     name: 'GPS caído',
