@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { sb } from './supabase';
+import { recomputeVehicleKm } from './kmRecompute';
 import type {
   Attachment,
   Doc,
@@ -83,6 +84,9 @@ const ALL: TableName[] = [
   'maintenance_history',
 ];
 
+/** Tablas cuyos registros traen km y, por lo tanto, pueden cambiar el km actual de un vehículo. */
+const KM_TABLES = new Set<string>(['maintenance', 'repairs', 'fuel_loads']);
+
 /** Trae TODA la tabla (Supabase devuelve máx. 1000 filas por consulta, por eso se pagina). */
 async function fetchAll<T extends { id: string }>(table: string): Promise<T[]> {
   const out: T[] = [];
@@ -155,14 +159,36 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // El km del vehículo se deriva de sus registros: al crear/editar/borrar uno que trae km se recalcula (ver kmRecompute.ts)
+  const touchKm = useCallback(
+    async (ids: (string | null | undefined)[]) => {
+      const list = [...new Set(ids.filter((x): x is string => !!x))];
+      if (!list.length) return;
+      try {
+        let changed = false;
+        for (const id of list) changed = (await recomputeVehicleKm(id)) || changed;
+        if (changed) await reload('vehicles', 'km_history');
+      } catch (e) {
+        console.error('No se pudo recalcular el km del vehículo', e);
+      }
+    },
+    [reload]
+  );
+  const vehicleOf = async (table: TableName, id: string): Promise<string | null> => {
+    if (!KM_TABLES.has(table)) return null;
+    const { data } = await sb().from(table).select('vehicle_id').eq('id', id).maybeSingle();
+    return (data as { vehicle_id?: string } | null)?.vehicle_id ?? null;
+  };
+
   const insert = useCallback(
     async <T,>(table: TableName, row: object) => {
       const { data, error: e } = await sb().from(table).insert(row).select().single();
       if (e) throw e;
       await reload(table);
+      if (KM_TABLES.has(table)) await touchKm([(row as { vehicle_id?: string }).vehicle_id]);
       return data as T;
     },
-    [reload]
+    [reload, touchKm]
   );
 
   const insertMany = useCallback(
@@ -189,20 +215,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const update = useCallback(
     async (table: TableName, id: string, patch: object) => {
+      const before = await vehicleOf(table, id);
       const { error: e } = await sb().from(table).update(patch).eq('id', id);
       if (e) throw e;
       await reload(table);
+      if (KM_TABLES.has(table)) await touchKm([before, (patch as { vehicle_id?: string }).vehicle_id]);
     },
-    [reload]
+    [reload, touchKm]
   );
 
   const remove = useCallback(
     async (table: TableName, id: string) => {
+      const before = await vehicleOf(table, id);
       const { error: e } = await sb().from(table).delete().eq('id', id);
       if (e) throw e;
       await reload(table);
+      if (KM_TABLES.has(table)) await touchKm([before]);
     },
-    [reload]
+    [reload, touchKm]
   );
 
   const saveSettings = useCallback(async (patch: Partial<Settings>) => {

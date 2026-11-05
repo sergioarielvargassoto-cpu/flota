@@ -3,7 +3,7 @@ import { useData } from './data';
 import { sb } from './supabase';
 import { recordKmChange } from './history';
 import { gpsRange, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
-import { lastReading } from './kmAnchor';
+import { gpsCoversFrom, lastReading } from './kmAnchor';
 import { DEFAULT_TANK_L, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
@@ -190,7 +190,7 @@ export function useImporters() {
         (m, d) => (!m || d < m ? d : m),
         null
       );
-      if (anchor && firstGps && firstGps <= anchor.date) {
+      if (anchor && gpsCoversFrom(firstGps, anchor.date)) {
         const after = arr.filter((t) => t.date > anchor.date);
         const km2 = Math.round(anchor.km + after.reduce((s, t) => s + t.km_calc, 0));
         const kd2 = after.reduce((mx, t) => (t.date > mx ? t.date : mx), anchor.date);

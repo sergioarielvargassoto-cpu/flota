@@ -33,6 +33,8 @@ export const PAIR_MIN_KM = 150;
 export const OKODO_KM_PER_DAY = 700;
 export const OKODO_BASE_KM = 1000;
 export const OKODO_BACK_KM = 300;
+/** Los km de taller suelen venir redondeados (a 500 o 1.000): diferencia tolerada contra las lecturas vecinas al cargar un registro. */
+export const TALLER_ROUND_KM = 500;
 
 export type ParamDoc = { name: string; value: string; why: string; review: string };
 
@@ -90,6 +92,12 @@ export const PARAM_DOCS: ParamDoc[] = [
     value: 'carga de estación válida · km cargado a mano · Mantenimientos · Reparaciones',
     why: 'Los km de Mantenimientos y Reparaciones se anotan en el taller leyendo el tablero (a veces redondeados). El km actual = última lectura + todo el GPS posterior. El km "calculado con GPS" nunca es una lectura.',
     review: 'Si un km de taller resulta inconsistente con las demás fuentes, corregirlo en su registro.',
+  },
+  {
+    name: 'Km cargado en Mantenimientos / Reparaciones (control al guardar)',
+    value: `se pide confirmar si el km retrocede más de ${TALLER_ROUND_KM} km o sube más de ${OKODO_KM_PER_DAY} km/día + ${OKODO_BASE_KM} km respecto de las lecturas vecinas`,
+    why: 'El km del vehículo se DERIVA de sus lecturas (última lectura + GPS posterior) y se recalcula al crear, editar o borrar un registro: corregir un registro corrige también el km del vehículo. El control evita guardar tipeos (p. ej. 213.000 en lugar de 143.000).',
+    review: 'Si el redondeo de taller es mayor, subir la tolerancia.',
   },
   {
     name: 'Fecha de la lectura al actualizar el km',

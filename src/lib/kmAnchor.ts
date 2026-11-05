@@ -40,6 +40,13 @@ export function readingsOf(
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.km - b.km);
 }
 
+/** ¿El GPS cubre desde la lectura? El primer día con GPS puede ser el mismo día de la lectura o el siguiente (continuidad). */
+export function gpsCoversFrom(firstGpsDate: string | null, readingDate: string): boolean {
+  if (!firstGpsDate) return false;
+  const next = new Date(new Date(readingDate + 'T00:00:00').getTime() + 864e5).toLocaleDateString('en-CA');
+  return firstGpsDate <= next;
+}
+
 /** La lectura más reciente (a igual fecha, la de mayor km), o null si no hay ninguna. */
 export function lastReading(
   vehicleId: string,

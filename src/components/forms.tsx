@@ -14,33 +14,60 @@ import {
 import { FormModal, type Field } from './FormModal';
 import { uploadFiles } from './Attachments';
 import { recordKmChange, recordRepairChange, recordMaintenanceChange } from '@/lib/history';
-import { okOdo } from '@/lib/util';
+import { readingsOf } from '@/lib/kmAnchor';
+import { OKODO_BASE_KM, OKODO_KM_PER_DAY, TALLER_ROUND_KM } from '@/lib/params';
 
-/** Hook con la lógica común: actualizar el km del vehículo cuando un registro trae un km mayor. */
+/**
+ * Un service registrado actualiza el "km del último service" del vehículo. El km actual del vehículo ya NO se pisa desde acá:
+ * se deriva de sus lecturas y se recalcula solo al crear/editar/borrar el registro (ver kmRecompute.ts).
+ */
 function useBump() {
   const { vehicles, update } = useData();
-  return async (vehicleId: string, km: number | null, date: string, service = false) => {
+  return async (vehicleId: string, km: number | null, _date: string, service = false) => {
     const v = vehicles.find((x) => x.id === vehicleId);
     if (!v || km === null) return;
-    const patch: Partial<Vehicle> = {};
-    // El km del vehículo solo avanza con registros NO anteriores a su última lectura (si no, km_date retrocedería y el GPS
-    // se volvería a sumar), y un salto fuera de lo razonable pide confirmación (evita tipeos como 500000).
-    const isNewer = !v.km_date || date >= v.km_date;
-    if (isNewer && (v.km === null || km > v.km)) {
-      const sane = v.km === null || !v.km_date || okOdo(v.km, v.km_date, date, km);
-      if (
-        sane ||
-        confirm(
-          `El km ingresado (${km.toLocaleString('es-AR')}) es mucho mayor al actual de ${v.plate} (${v.km?.toLocaleString('es-AR')}). ¿Es correcto? Si no, cancelá y revisalo.`
-        )
-      ) {
-        patch.km = km;
-        patch.km_date = date;
-      }
-    }
-    if (service && (v.last_service_km === null || km > v.last_service_km)) patch.last_service_km = km;
-    if (Object.keys(patch).length) await update('vehicles', vehicleId, patch);
-    if (patch.km !== undefined) await recordKmChange(vehicleId, patch.km as number, v.km, 'registro');
+    if (service && (v.last_service_km === null || km > v.last_service_km)) await update('vehicles', vehicleId, { last_service_km: km });
+  };
+}
+
+/**
+ * Control ANTES de guardar un registro con km: si no es coherente con las lecturas vecinas del vehículo (retrocede más del
+ * redondeo habitual de taller, o sube más de lo físicamente posible), pide confirmación. Evita tipeos como 213.000 en vez de 143.000.
+ */
+function useKmGuard() {
+  const { vehicles, fuel_loads, km_history, maintenance, repairs } = useData();
+  return (
+    vehicleId: string,
+    km: unknown,
+    date: string,
+    exclude?: { table: 'maintenance' | 'repairs'; id?: string }
+  ): boolean => {
+    const n = km === null || km === undefined || km === '' ? NaN : Number(km);
+    if (!Number.isFinite(n) || !date) return true;
+    const rd = readingsOf(vehicleId, {
+      fuel_loads,
+      km_history,
+      maintenance: exclude?.table === 'maintenance' ? maintenance.filter((m) => m.id !== exclude.id) : maintenance,
+      repairs: exclude?.table === 'repairs' ? repairs.filter((r) => r.id !== exclude.id) : repairs,
+    });
+    const before = [...rd].reverse().find((r) => r.date <= date);
+    const after = rd.find((r) => r.date >= date);
+    const days = (a: string, b: string) => Math.round((+new Date(b + 'T00:00:00') - +new Date(a + 'T00:00:00')) / 864e5);
+    const low = !!before && n < before.km - TALLER_ROUND_KM;
+    const high = !!before && n > before.km + Math.max(1, days(before.date, date)) * OKODO_KM_PER_DAY + OKODO_BASE_KM;
+    const afterLow = !!after && n > after.km + TALLER_ROUND_KM;
+    if (!low && !high && !afterLow) return true;
+    const ref = low || high ? before! : after!;
+    const plate = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
+    const f = (x: string) => x.split('-').reverse().join('/');
+    return confirm(
+      `El km ${n.toLocaleString('es-AR')} de ${plate} no es coherente con la lectura del ${f(ref.date)} (${ref.km.toLocaleString('es-AR')} km, ${ref.src}).
+
+` +
+        `${low ? 'Es MENOR: el odómetro no retrocede.' : high ? 'Es MUCHO MAYOR de lo posible en ese tiempo.' : 'Supera una lectura posterior ya registrada.'}
+
+¿Es correcto? Si no, cancelá y revisalo.`
+    );
   };
 }
 
@@ -223,6 +250,7 @@ export function WorkshopForm({ id, onClose }: { id?: string; onClose: () => void
 export function RepairForm({ id, vehicleId, onClose }: { id?: string; vehicleId?: string; onClose: () => void }) {
   const { vehicles, workshops, repairs, insert, update, reload } = useData();
   const bump = useBump();
+  const kmOk = useKmGuard();
   const r = id ? repairs.find((x) => x.id === id) : undefined;
   return (
     <FormModal
@@ -241,6 +269,7 @@ export function RepairForm({ id, vehicleId, onClose }: { id?: string; vehicleId?
         { k: 'status', l: 'Estado', t: 'select', options: ['Pendiente', 'En curso', 'Finalizada'], half: true },
       ]}
       onSave={async (vals, files) => {
+        if (!kmOk(vals.vehicle_id as string, vals.km, vals.date as string, { table: 'repairs', id })) throw new Error('Guardado cancelado: revisá el km indicado.');
         let rid = id;
         if (rid) {
           if (r?.status !== vals.status)
@@ -265,6 +294,7 @@ export function RepairForm({ id, vehicleId, onClose }: { id?: string; vehicleId?
 export function MaintForm({ id, vehicleId, onClose }: { id?: string; vehicleId?: string; onClose: () => void }) {
   const { vehicles, workshops, maintenance, insert, update, reload } = useData();
   const bump = useBump();
+  const kmOk = useKmGuard();
   const m = id ? maintenance.find((x) => x.id === id) : undefined;
   return (
     <FormModal
@@ -284,6 +314,7 @@ export function MaintForm({ id, vehicleId, onClose }: { id?: string; vehicleId?:
         { k: 'notes', l: 'Notas', t: 'textarea' },
       ]}
       onSave={async (vals, files) => {
+        if (!kmOk(vals.vehicle_id as string, vals.km, vals.date as string, { table: 'maintenance', id })) throw new Error('Guardado cancelado: revisá el km indicado.');
         let mid = id;
         if (mid) {
           if (m?.type !== vals.type) await recordMaintenanceChange(mid, 'type', m?.type || null, vals.type as string);
