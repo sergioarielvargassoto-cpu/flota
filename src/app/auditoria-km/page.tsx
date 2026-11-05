@@ -36,10 +36,11 @@ export default function AuditoriaKm() {
     return { pairs: fuelPairs(fleet, from, to), wins: vehicleMonth(fleet, mKey) };
   }, [fleet, mKey]);
 
-  const { flags, stale, services } = useMemo(() => {
+  const { flags, stale, services, discarded } = useMemo(() => {
     const today = new Date().toLocaleDateString('en-CA');
     const flags: { plate: string; from: Reading; to: Reading; gps: number; expected: number; diff: number }[] = [];
     const stale: { plate: string; last: Reading | null; days: number | null }[] = [];
+    let discarded = 0;
 
     for (const v of vehicles) {
       if (v.status === 'Baja') continue;
@@ -67,8 +68,14 @@ export default function AuditoriaKm() {
       // Las lecturas descartadas al importar (tipeos) se comparan contra esa referencia, pero nunca la reemplazan.
       let anchor: Reading | null = null;
       for (const r of rs) {
+        // Una lectura descartada al importar es un dato inválido (tipeo, número inventado): no es una "discrepancia con el GPS".
+        // Se cuenta aparte y se detalla en el Informe de gestión → Calidad de los km declarados.
+        if (r.rejected) {
+          discarded++;
+          continue;
+        }
         if (!anchor) {
-          if (!r.rejected) anchor = r;
+          anchor = r;
           continue;
         }
         if (r.date <= anchor.date) continue;
@@ -106,7 +113,7 @@ export default function AuditoriaKm() {
       .sort((a, b) => a.left - b.left);
 
     flags.sort((a, b) => b.to.date.localeCompare(a.to.date));
-    return { flags, stale, services };
+    return { flags, stale, services, discarded };
   }, [vehicles, trips, fuel_loads, km_history, settings]);
 
   return (
@@ -166,6 +173,13 @@ export default function AuditoriaKm() {
         </div>
       ) : (
         <div className="empty">✔ Todas las lecturas auditables coinciden con el GPS.</div>
+      )}
+      {discarded > 0 && (
+        <p className="muted">
+          ℹ {discarded} lecturas de estaciones fueron descartadas por ser datos inválidos (por ejemplo, un km tipeado de cualquier manera).
+          No se usan en ningún cálculo y no se muestran acá: están detalladas en el <Link href="/informe">Informe de gestión</Link>, sección
+          “Calidad de los km declarados en las estaciones”.
+        </p>
       )}
       <p className="muted">
         Se compara cada lectura de tablero (estaciones y cargas manuales) con la anterior más los km que midió el GPS en
