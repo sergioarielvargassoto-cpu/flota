@@ -150,7 +150,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     })();
-  }, [reload]);
+    // IMPORTANTE: carga inicial UNA sola vez. No depender de `reload`: si su identidad cambiara, esto volvería a descargar
+    // todas las tablas en bucle (así se consumieron >10 GB de descarga de Supabase en octubre).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const insert = useCallback(
     async <T,>(table: TableName, row: object) => {
