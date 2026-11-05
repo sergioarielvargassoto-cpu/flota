@@ -49,7 +49,8 @@ type Input = { vehicles: Vehicle[]; drivers: Driver[]; documents: Doc[]; mainten
 
 export function computeAlerts(d: Input, all = false): AlertItem[] {
   const { vehicles, drivers, documents, maintenance, settings: s } = d;
-  const vMap = new Map(vehicles.map((v) => [v.id, v]));
+  // Los vehículos dados de baja no generan alertas de vencimientos ni de mantenimiento
+  const vMap = new Map(vehicles.filter((v) => v.status !== 'Baja').map((v) => [v.id, v]));
   const dMap = new Map(drivers.map((x) => [x.id, x]));
   const out: AlertItem[] = [];
 

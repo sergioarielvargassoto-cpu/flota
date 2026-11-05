@@ -4,11 +4,16 @@ import { useParams, useRouter } from 'next/navigation';
 import { useData } from '@/lib/data';
 import { fd, guard, money, num, todayStr } from '@/lib/util';
 import { DocsTable, MaintTable, RepairsTable } from '@/components/Tables';
-import { MaintForm, RepairForm, VehicleForm, KmUpdateForm } from '@/components/forms';
+import { DocForm, MaintForm, RepairForm, VehicleForm, KmUpdateForm } from '@/components/forms';
 import { FormModal } from '@/components/FormModal';
+import { uploadFiles } from '@/components/Attachments';
+import type { Doc } from '@/lib/types';
 import { bajaLine, exportLegajo, parseBaja, vehicleHistory, withBaja, withoutBaja } from '@/lib/archive';
 import { useModal } from '@/components/useModal';
 import { KmTimeline } from '@/components/HistoryTimeline';
+
+/** Documento del vehículo donde se guardan las fotos y el formulario 08 de la baja (uno por vehículo). */
+const BAJA_DOC = 'Baja / Formulario 08 y fotos';
 
 export default function VehiculoDetalle() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +34,7 @@ export default function VehiculoDetalle() {
     workshops,
     settings,
     update,
+    insert,
     remove,
     reload,
   } = useData();
@@ -48,6 +54,7 @@ export default function VehiculoDetalle() {
   const ms = maintenance.filter((m) => m.vehicle_id === v.id);
   const hist = vehicleHistory(v.id, { drivers, documents, repairs, maintenance, fuel_loads, trips, km_history, km_reports, infractions, fines, attachments, workshops });
   const baja = parseBaja(v.notes);
+  const bajaDoc = documents.find((x) => x.vehicle_id === v.id && (x.doc_type as string) === BAJA_DOC);
   const total = rs.reduce((s, r) => s + (r.cost ?? 0), 0) + ms.reduce((s, m) => s + (m.cost ?? 0), 0);
 
   return (
@@ -99,16 +106,26 @@ export default function VehiculoDetalle() {
                   title={`Dar de baja ${v.plate}`}
                   onClose={c}
                   initial={{ date: todayStr(), reason: 'Venta' }}
+                  files={{ kind: 'document', id: bajaDoc?.id }}
                   fields={[
                     { k: 'date', l: 'Fecha de baja', t: 'date', req: true, half: true },
                     { k: 'reason', l: 'Motivo', t: 'combo', req: true, half: true, options: ['Venta', 'Siniestro / destrucción total', 'Robo', 'Fin de contrato / devolución', 'Otro'] },
                     { k: 'detail', l: 'Detalle (comprador, n° de denuncia, etc.)', t: 'textarea' },
                   ]}
-                  onSave={async (vals) => {
+                  onSave={async (vals, files) => {
                     await update('vehicles', v.id, {
                       status: 'Baja',
                       notes: withBaja(v.notes, bajaLine(String(vals.date), String(vals.reason), String(vals.detail ?? ''))),
                     });
+                    // Fotos / Formulario 08 / denuncia: se guardan como documento del vehículo con sus archivos adjuntos
+                    const payload = { reference: `Baja ${fd(String(vals.date))} · ${vals.reason}`, notes: vals.detail ? String(vals.detail) : null };
+                    let docId = bajaDoc?.id;
+                    if (docId) await update('documents', docId, payload);
+                    else docId = (await insert<Doc>('documents', { vehicle_id: v.id, doc_type: BAJA_DOC, expires_on: null, ...payload })).id;
+                    if (files.length) {
+                      await uploadFiles('document', docId, files);
+                      await reload('attachments');
+                    }
                   }}
                 />
               ))
@@ -142,6 +159,14 @@ export default function VehiculoDetalle() {
             Su historial completo (documentos, mantenimientos, reparaciones, combustible, recorridos, multas y archivos adjuntos) se conserva para
             estadísticas y respaldo legal. Podés bajarlo con “Exportar legajo”.
           </span>
+          <div style={{ marginTop: 8 }}>
+            <button
+              className="b2 sm"
+              onClick={() => open((c) => <DocForm owner={{ type: 'vehicle', id: v.id }} docId={bajaDoc?.id} onClose={c} />)}
+            >
+              📎 {bajaDoc ? 'Agregar fotos / Formulario 08' : 'Cargar fotos / Formulario 08'}
+            </button>
+          </div>
         </div>
       )}
       <div className="info">
