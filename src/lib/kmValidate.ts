@@ -4,7 +4,7 @@
  */
 import { gpsRange, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
 import { okOdo } from './util';
-import { UNCOVERED_GPS_KM_PER_DAY, GPS_DEAD_RATIO, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100, TALLER_ROUND_KM } from './params';
+import { UNCOVERED_GPS_KM_PER_DAY, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100, TALLER_ROUND_KM } from './params';
 
 export type Anchor = { date: string; km: number; src?: 'estación' | 'manual' | 'mantenimiento' | 'reparación' };
 export type Verdict = { ok: boolean; reason: string; rangeMin?: number; rangeMax?: number };
@@ -40,11 +40,6 @@ export function validateReading(p: {
       const end = a.date <= lg ? a.date : lg;
       const unc = a.date > lg ? days(lg, a.date) * UNCOVERED_GPS_KM_PER_DAY : 0;
       const rg = gpsRange(trips, vid, fecha, end);
-      // GPS caído en el tramo (casi no registró): no sirve para validar; se usa solo la plausibilidad
-      if (rg.max < GPS_DEAD_RATIO * Math.abs(a.km - odo)) {
-        const okBack = odo > 0 && odo <= a.km + OKODO_BACK_KM + slack && odo >= a.km - (days(fecha, a.date) * OKODO_KM_PER_DAY + OKODO_BASE_KM);
-        return { ok: okBack, reason: okBack ? 'GPS sin datos en el tramo: plausible' : 'GPS sin datos en el tramo e implausible' };
-      }
       const out = outsideRange(a.km - odo, { min: Math.max(0, rg.min - slack), max: rg.max + slack + unc });
       return { ok: out === 0, reason: out === 0 ? 'coincide con el GPS hacia atrás' : `fuera del rango de GPS por ${Math.abs(out)} km`, rangeMin: rg.min, rangeMax: rg.max };
     }
@@ -59,10 +54,6 @@ export function validateReading(p: {
     return { ok, reason: ok ? 'plausible (GPS aún sin cargar)' : 'implausible (GPS aún sin cargar)' };
   }
   const rg = gpsRange(trips, vid, a.date, fecha);
-  if (rg.max < GPS_DEAD_RATIO * Math.abs(odo - a.km)) {
-    const ok = okOdo(a.km - slack, a.date, fecha, odo);
-    return { ok, reason: ok ? 'GPS sin datos en el tramo: plausible' : 'GPS sin datos en el tramo e implausible' };
-  }
   const out = outsideRange(odo - a.km, { min: Math.max(0, rg.min - slack), max: rg.max + slack });
   return { ok: out === 0, reason: out === 0 ? 'coincide con el GPS' : `fuera del rango de GPS por ${Math.abs(out)} km`, rangeMin: rg.min, rangeMax: rg.max };
 }

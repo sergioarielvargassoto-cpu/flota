@@ -15,6 +15,8 @@ import { FormModal, type Field } from './FormModal';
 import { uploadFiles } from './Attachments';
 import { recordKmChange, recordRepairChange, recordMaintenanceChange } from '@/lib/history';
 import { readingsOf } from '@/lib/kmAnchor';
+import { gpsReliability } from '@/lib/kmAudit';
+import { trajectoryOutliers } from '@/lib/kmTrajectory';
 import { OKODO_BASE_KM, OKODO_KM_PER_DAY, TALLER_ROUND_KM } from '@/lib/params';
 
 /**
@@ -35,7 +37,7 @@ function useBump() {
  * redondeo habitual de taller, o sube más de lo físicamente posible), pide confirmación. Evita tipeos como 213.000 en vez de 143.000.
  */
 function useKmGuard() {
-  const { vehicles, fuel_loads, km_history, maintenance, repairs } = useData();
+  const { vehicles, fuel_loads, km_history, maintenance, repairs, trips } = useData();
   return (
     vehicleId: string,
     km: unknown,
@@ -56,6 +58,22 @@ function useKmGuard() {
     const low = !!before && n < before.km - TALLER_ROUND_KM;
     const high = !!before && n > before.km + Math.max(1, days(before.date, date)) * OKODO_KM_PER_DAY + OKODO_BASE_KM;
     const afterLow = !!after && n > after.km + TALLER_ROUND_KM;
+    // Contraste con la TRAYECTORIA: el km nuevo se compara con hasta 3 lecturas anteriores y 3 posteriores (cualquier fuente) y con el GPS
+    const cand = { key: 'NUEVA', date, km: n, src: exclude?.table === 'repairs' ? ('reparación' as const) : ('mantenimiento' as const) };
+    const traj = trajectoryOutliers(
+      [...rd.map((r) => ({ key: `${r.date}|${r.km}|${r.src}`, date: r.date, km: r.km, src: r.src })), cand],
+      trips,
+      vehicleId,
+      gpsReliability(vehicleId, fuel_loads, trips).reliable
+    ).find((f) => f.key === 'NUEVA');
+    if (traj) {
+      const plateT = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
+      return confirm(`El km ${n.toLocaleString('es-AR')} de ${plateT} parece un error.
+
+${traj.reason}
+
+¿Es correcto? Si no, cancelá y revisalo.`);
+    }
     if (!low && !high && !afterLow) return true;
     const ref = low || high ? before! : after!;
     const plate = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';

@@ -3,7 +3,8 @@ import { useData } from './data';
 import { sb } from './supabase';
 import { recordKmChange } from './history';
 import { gpsRange, gpsReliability, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
-import { gpsCoversFrom, lastReading, readingDateOf } from './kmAnchor';
+import { gpsCoversFrom, lastReading, readingDateOf, readingsOf } from './kmAnchor';
+import { trajectoryOutliers, type TReading } from './kmTrajectory';
 import { validateReading, type Anchor } from './kmValidate';
 import { DEFAULT_TANK_L, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
 import type { ColSpec } from './excel';
@@ -459,6 +460,22 @@ export function useImporters() {
         );
       return v.ok;
     };
+    // Contraste con la TRAYECTORIA: cada lectura del archivo se compara con hasta 3 lecturas confiables anteriores y 3 posteriores del
+    // vehículo (estaciones, km a mano, mantenimientos, reparaciones) y con el GPS. "Atípica" = no concuerda con ninguna → se descarta.
+    const trajBad = new Map<number, string>();
+    {
+      const byVeh = new Map<string, { i: number; x: (typeof L)[number] }[]>();
+      L.forEach((x, i) => {
+        const v = byPlate.get(x.pt);
+        if (v && !isNaN(x.odo) && isFuel(x.prod)) byVeh.set(v.id, [...(byVeh.get(v.id) ?? []), { i, x }]);
+      });
+      for (const [vid, cands] of byVeh) {
+        const existing: TReading[] = readingsOf(vid, ref).map((r) => ({ key: `E|${r.date}|${r.km}|${r.src}`, date: r.date, km: r.km, src: r.src }));
+        const news: TReading[] = cands.map(({ i, x }) => ({ key: `N|${i}`, date: x.fecha, km: Math.round(x.odo), src: 'estación' as const }));
+        for (const f of trajectoryOutliers([...existing, ...news], trips, vid, gpsOkOf(vid)))
+          if (f.key.startsWith('N|') && f.level === 'atípica') trajBad.set(Number(f.key.slice(2)), f.reason);
+      }
+    }
     const rows: object[] = [];
     let dup = 0,
       bad = 0,
@@ -479,7 +496,12 @@ export function useImporters() {
       else haveKey.add([v.id, x.fecha, liters, amount].join('|'));
       const st = state.get(v.id)!;
       const odo = isNaN(x.odo) ? null : Math.round(x.odo);
-      const good = odo !== null && isFuel(x.prod) && validate(v.id, x.pt, x.fecha, odo, liters);
+      const trajReason = trajBad.get(L.indexOf(x));
+      let good = odo !== null && isFuel(x.prod) && validate(v.id, x.pt, x.fecha, odo, liters);
+      if (good && trajReason) {
+        good = false;
+        if (alerts.length < 12) alerts.push(`${x.pt} ${x.fecha}: declaró ${odo?.toLocaleString('es-AR')}. ${trajReason}`);
+      }
       if (odo !== null && !good && isFuel(x.prod)) bad++;
       if (good && (!st.odoDate || x.fecha >= st.odoDate)) {
         st.odo = odo;

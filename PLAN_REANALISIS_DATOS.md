@@ -4,6 +4,11 @@ Creado el 4/11/2026. **Cuándo hacerlo:** cuando haya al menos 3 meses de combus
 y 3 meses de GPS (Gestya) por vehículo. El análisis de septiembre (`ANALISIS_CALIBRACION_2026-11-04.md`) usó **un solo mes** de combustible y
 vehículos con 1 a 14 lecturas: sirve para orientar, no para fijar parámetros definitivos.
 
+## Principio (dicho por el dueño, 4/11/2026)
+Hoy hay poca información; con más datos el control será mucho más preciso. La validación ya no compara solo con la última lectura confiable:
+cada lectura se contrasta con hasta **3 anteriores y 3 posteriores** de cualquier fuente (estación, km a mano, mantenimiento, reparación) y con el GPS
+(`src/lib/kmTrajectory.ts`). Con más lecturas por vehículo se puede subir `NEIGHBORS_EACH_SIDE`, afinar el margen y calcular un factor de escala propio por vehículo.
+
 ## Qué rehacer, con más datos
 1. **Factor de escala odómetro/GPS por vehículo** (regresión por el origen, con intervalo de confianza). Exigir ≥6 tramos limpios por unidad.
    En septiembre: AG281ZJ 0,935 · AH530QG 1,086 · AE615LU 1,024 · AE547NW 0,992 · AF630PC 1,000 · AE149OR 0,953.

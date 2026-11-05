@@ -12,6 +12,8 @@ export const RANGE_TOL_PCT = 0.03;
 export const GPS_DEAD_RATIO = 0.2;
 /** Días SIN datos de GPS entre el último día cargado y una referencia más nueva: se admite hasta este recorrido por día. */
 export const UNCOVERED_GPS_KM_PER_DAY = 400;
+/** Cuántas lecturas vecinas (de cualquier fuente) se contrastan de cada lado de una lectura: más historia = más precisión. */
+export const NEIGHBORS_EACH_SIDE = 3;
 /** Un GPS es "confiable" para auditar si, en los tramos limpios del vehículo, odómetro ÷ GPS está en este rango. */
 export const GPS_RELIABLE_MIN = 0.75;
 export const GPS_RELIABLE_MAX = 1.3;
@@ -73,6 +75,12 @@ export const PARAM_DOCS: ParamDoc[] = [
     value: 'deja sin efecto lo conocido hasta ese momento; no se pisa con combustible ni con GPS acumulado',
     why: 'Cuando el responsable no está seguro del km (p. ej. AI605GB), un 0 evita que el sistema invente un valor. Se reemplaza al cargar el km real con su fecha.',
     review: '—',
+  },
+  {
+    name: 'Contraste con la trayectoria (varias lecturas, no solo la última)',
+    value: `cada lectura se compara con hasta ${NEIGHBORS_EACH_SIDE} anteriores y ${NEIGHBORS_EACH_SIDE} posteriores; atípica = no concuerda con ninguna; dudosa = concuerda con menos de la mitad (con 3 o más vecinas)`,
+    why: 'Concordar es que el avance del odómetro entre ambas fechas quepa en el rango de GPS (o sea posible si no hay GPS confiable), contando el redondeo de taller. Así un 123, un 213.000 o un 134.999 no tienen respaldo en ninguna vecina, aunque la última lectura sea buena o esté mal. Con septiembre-octubre, errores de ±500 km pasan (redondeo) y desde ±800 km se marcan.',
+    review: 'Con más lecturas por vehículo se puede subir a más vecinas y afinar el margen. Es la mejora que más se beneficia de tener más datos.',
   },
   {
     name: 'GPS caído',

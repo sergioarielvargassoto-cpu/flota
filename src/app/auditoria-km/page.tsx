@@ -5,7 +5,9 @@ import { useData } from '@/lib/data';
 import { fd, isFuel, num } from '@/lib/util';
 import { Badge } from '@/components/Badge';
 import { gpsRange, outsideRange } from '@/lib/kmAudit';
-import { readingDateOf } from '@/lib/kmAnchor';
+import { readingDateOf, readingsOf } from '@/lib/kmAnchor';
+import { trajectoryOutliers } from '@/lib/kmTrajectory';
+import { gpsReliability } from '@/lib/kmAudit';
 import { PARAM_DOCS, STALE_READING_DAYS, UNCOVERED_GPS_KM_PER_DAY } from '@/lib/params';
 import { fuelPairs, monthLabel, monthRange, vehicleMonth, availableMonths, type Data } from '@/lib/fleetStats';
 
@@ -28,6 +30,25 @@ export default function AuditoriaKm() {
     () => ({ vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions }),
     [vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions]
   );
+  // Lecturas de cualquier fuente que no encajan con las vecinas (todo el historial): errores de tipeo en estaciones, talleres o cargas a mano
+  const offTrack = useMemo(() => {
+    const out: { plate: string; date: string; km: number; src: string; level: string; agree: number; of: number; lo?: number; hi?: number; reason: string }[] = [];
+    for (const v of vehicles) {
+      if (v.status === 'Baja') continue;
+      const rd = readingsOf(v.id, { fuel_loads, km_history, maintenance, repairs });
+      const found = trajectoryOutliers(
+        rd.map((r) => ({ key: `${r.date}|${r.km}|${r.src}`, date: r.date, km: r.km, src: r.src })),
+        trips,
+        v.id,
+        gpsReliability(v.id, fuel_loads, trips).reliable
+      );
+      for (const f of found) {
+        const [date, km, src] = f.key.split('|');
+        out.push({ plate: v.plate, date, km: Number(km), src, level: f.level, agree: f.agree, of: f.of, lo: f.expectedLo, hi: f.expectedHi, reason: f.reason });
+      }
+    }
+    return out.sort((a, b) => b.date.localeCompare(a.date));
+  }, [vehicles, trips, fuel_loads, km_history, maintenance, repairs]);
   const fuelMonths = useMemo(
     () => [...new Set(fuel_loads.map((f) => f.date.slice(0, 7)))].sort().reverse(),
     [fuel_loads]
@@ -139,6 +160,54 @@ export default function AuditoriaKm() {
         únicamente cuando se carga en su sección con el vehículo correspondiente. Si el km real supera el del service y
         no hay registro, queda <b>vencido</b> hasta que se verifique si se hizo y se cargue.
       </div>
+
+      <h3>🧭 Lecturas que no encajan con las demás del vehículo</h3>
+      <p className="muted">
+        Cada lectura (de estación, cargada a mano, de mantenimiento o de reparación) se contrasta con hasta 3 anteriores y 3 posteriores, y con el GPS.
+        <b> Atípica</b>: no concuerda con ninguna. <b>Dudosa</b>: concuerda con menos de la mitad. Se aceptan diferencias de hasta ±500 km por el redondeo
+        de taller. Con más datos esta revisión será más precisa.
+      </p>
+      {offTrack.length ? (
+        <div className="tw">
+          <table>
+            <thead>
+              <tr>
+                <th>Vehículo</th>
+                <th>Fecha</th>
+                <th>Km cargado</th>
+                <th>Fuente</th>
+                <th>Resultado</th>
+                <th>Lo esperable en esa fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              {offTrack.map((o, i) => (
+                <tr key={i}>
+                  <td>
+                    <b>{o.plate}</b>
+                  </td>
+                  <td>{fd(o.date)}</td>
+                  <td>
+                    <b>{num(o.km)}</b>
+                  </td>
+                  <td>{o.src}</td>
+                  <td>
+                    <Badge status="vencido">
+                      {o.level === 'atípica' ? '⚠ Atípica' : '⚠ Dudosa'} ({o.agree}/{o.of})
+                    </Badge>
+                  </td>
+                  <td>
+                    {o.lo !== undefined ? `${num(o.lo)} – ${num(o.hi)} km` : '—'}
+                    <div className="muted">Corregir el km en el registro correspondiente</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="empty">✔ Todas las lecturas encajan con las de su vehículo.</div>
+      )}
 
       <h3>⚠ Lecturas que no coinciden con el GPS</h3>
       {flags.length ? (
