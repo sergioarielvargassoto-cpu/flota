@@ -32,6 +32,9 @@ vehículos con 1 a 14 lecturas: sirve para orientar, no para fijar parámetros d
 - **Caso abierto:** tramo AG281ZJ 23→25/09, odómetro declarado 297 km; el GPS exige entre 460 y 803 km. Los tramos vecinos (21→23: 678 km dentro de 449–852;
   25→30: 615 km dentro de 225–666) solo cierran si **la lectura del 23/09 (143.112) está tipeada alta entre 113 y 279 km** (real ≈ 142.833–142.999),
   **o la del 25/09 (143.409) está tipeada baja por 113 km o más**. Verificar con el remito/foto de esa carga.
+  **Actualización (4/11):** el dueño informa que el 25/09 tenía ≈ 143.350 km (coincide con el 143.409 declarado). Con eso, todo cuadra: 143.350 + GPS posterior da
+  144.015 el 30/09 (declarado 144.024), 144.985 el 07/10 (service 145.000) y **148.185–148.375 km al 31/10**. El que queda sospechoso es el del 23/09 (143.112): probable
+  error del playero (real ≈ 142.833–142.999). Km vigente a corregir en la ficha: ≈ 148.390 (service 07/10 + GPS posterior); hoy figura 213.000 por un registro mal cargado.
 - **Renault:** un tanque lleno rinde entre 400 y 500 km (≈ 9–11 L/100 km). La carga del 26/09 del AG416OE (29,75 L) completó el tanque.
 - **Mantenimientos y Reparaciones:** los km se anotan en el taller leyendo el tablero (a veces redondeados): se tratan como lecturas **confiables** del vehículo.
 - **Los vehículos dados de baja** conservan todo su historial (estadística histórica y respaldo legal); el 08 y fotos se guardan como documento del vehículo.
