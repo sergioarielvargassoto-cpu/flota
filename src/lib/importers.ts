@@ -476,6 +476,8 @@ export function useImporters() {
           if (f.key.startsWith('N|') && f.level === 'atípica') trajBad.set(Number(f.key.slice(2)), f.reason);
       }
     }
+    // Tarjeta de la carga vs tarjeta registrada del vehículo: si no coinciden, la carga pudo hacerse con la tarjeta de OTRO vehículo
+    const cardWarn: string[] = [];
     const rows: object[] = [];
     let dup = 0,
       bad = 0,
@@ -494,6 +496,10 @@ export function useImporters() {
       }
       if (x.rem) haveReceipt.add(x.rem);
       else haveKey.add([v.id, x.fecha, liters, amount].join('|'));
+      if (x.tarj && v.fuel_card && nrm(v.fuel_card) !== x.tarj.slice(-6) && cardWarn.length < 10) {
+        const owner = vehicles.find((w) => w.id !== v.id && nrm(w.fuel_card) && nrm(w.fuel_card) === x.tarj.slice(-6));
+        cardWarn.push(`${x.pt} ${x.fecha}: la tarjeta ...${x.tarj.slice(-6)} no es la registrada para este vehículo (...${nrm(v.fuel_card)})${owner ? `; es la de ${owner.plate}` : ''}`);
+      }
       const st = state.get(v.id)!;
       const odo = isNaN(x.odo) ? null : Math.round(x.odo);
       const trajReason = trajBad.get(L.indexOf(x));
@@ -548,7 +554,7 @@ export function useImporters() {
     }
     await reload('vehicles', 'documents', 'fuel_loads');
     alert(
-      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por no coincidir con el GPS:\n${alerts.join('\n')}` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}`
+      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por no coincidir con el GPS:\n${alerts.join('\n')}` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}${cardWarn.length ? `\n\n⚠ Cargas con una tarjeta distinta a la registrada del vehículo (pudo usarse la tarjeta de otro vehículo; verificar):\n${cardWarn.join('\n')}` : ''}`
     );
   }
 
