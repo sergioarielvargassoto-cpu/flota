@@ -6,7 +6,7 @@ import { fd, isFuel, num } from '@/lib/util';
 import { Badge } from '@/components/Badge';
 import { gpsRange, outsideRange } from '@/lib/kmAudit';
 import { readingDateOf } from '@/lib/kmAnchor';
-import { PARAM_DOCS, STALE_READING_DAYS } from '@/lib/params';
+import { PARAM_DOCS, STALE_READING_DAYS, UNCOVERED_GPS_KM_PER_DAY } from '@/lib/params';
 import { fuelPairs, monthLabel, monthRange, vehicleMonth, availableMonths, type Data } from '@/lib/fleetStats';
 
 type Reading = { date: string; km: number; src: string; who: string; rejected?: boolean };
@@ -94,7 +94,7 @@ export default function AuditoriaKm() {
           // Se compara contra el RANGO posible de GPS (la carga no tiene hora y el GPS suma días completos)
           const upTo = r.date < last ? r.date : last;
           const rg = gpsRange(trips, v.id, anchor.date, upTo);
-          const extra = Math.max(0, daysBetween(last, r.date)) * 400; // días sin GPS cargado todavía
+          const extra = Math.max(0, daysBetween(last, r.date)) * UNCOVERED_GPS_KM_PER_DAY; // días sin GPS cargado todavía
           const delta = r.km - anchor.km;
           let diff = outsideRange(delta, { min: rg.min, max: rg.max + extra });
           if (diff !== 0) {

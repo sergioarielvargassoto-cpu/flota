@@ -4,7 +4,7 @@
  */
 import { gpsRange, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
 import { okOdo } from './util';
-import { GPS_DEAD_RATIO, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100, TALLER_ROUND_KM } from './params';
+import { UNCOVERED_GPS_KM_PER_DAY, GPS_DEAD_RATIO, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100, TALLER_ROUND_KM } from './params';
 
 export type Anchor = { date: string; km: number; src?: 'estación' | 'manual' | 'mantenimiento' | 'reparación' };
 export type Verdict = { ok: boolean; reason: string; rangeMin?: number; rangeMax?: number };
@@ -34,14 +34,18 @@ export function validateReading(p: {
   const lg = p.gpsOk === false ? null : lastGpsDate(trips, vid);
   if (fecha <= a.date) {
     // Lectura ANTERIOR a la referencia (remitos tardíos, archivos de un mes ya cubierto): ancla − GPS del tramo
-    if (lg && lg >= a.date) {
-      const rg = gpsRange(trips, vid, fecha, a.date);
+    if (lg && lg >= fecha) {
+      // Si la referencia es más nueva que el último día de GPS cargado (p. ej. un service del 03/11 con GPS hasta el 31/10),
+      // se usa el GPS que haya y se admite un recorrido por los días sin datos.
+      const end = a.date <= lg ? a.date : lg;
+      const unc = a.date > lg ? days(lg, a.date) * UNCOVERED_GPS_KM_PER_DAY : 0;
+      const rg = gpsRange(trips, vid, fecha, end);
       // GPS caído en el tramo (casi no registró): no sirve para validar; se usa solo la plausibilidad
       if (rg.max < GPS_DEAD_RATIO * Math.abs(a.km - odo)) {
         const okBack = odo > 0 && odo <= a.km + OKODO_BACK_KM + slack && odo >= a.km - (days(fecha, a.date) * OKODO_KM_PER_DAY + OKODO_BASE_KM);
         return { ok: okBack, reason: okBack ? 'GPS sin datos en el tramo: plausible' : 'GPS sin datos en el tramo e implausible' };
       }
-      const out = outsideRange(a.km - odo, { min: Math.max(0, rg.min - slack), max: rg.max + slack });
+      const out = outsideRange(a.km - odo, { min: Math.max(0, rg.min - slack), max: rg.max + slack + unc });
       return { ok: out === 0, reason: out === 0 ? 'coincide con el GPS hacia atrás' : `fuera del rango de GPS por ${Math.abs(out)} km`, rangeMin: rg.min, rangeMax: rg.max };
     }
     const dd = days(fecha, a.date);

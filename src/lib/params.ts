@@ -10,6 +10,8 @@ export const RANGE_TOL_ABS_KM = 50;
 export const RANGE_TOL_PCT = 0.03;
 /** El GPS se considera "caído" si aun su máximo posible es menos de este porcentaje de lo que marcó el odómetro. */
 export const GPS_DEAD_RATIO = 0.2;
+/** Días SIN datos de GPS entre el último día cargado y una referencia más nueva: se admite hasta este recorrido por día. */
+export const UNCOVERED_GPS_KM_PER_DAY = 400;
 /** Un GPS es "confiable" para auditar si, en los tramos limpios del vehículo, odómetro ÷ GPS está en este rango. */
 export const GPS_RELIABLE_MIN = 0.75;
 export const GPS_RELIABLE_MAX = 1.3;
