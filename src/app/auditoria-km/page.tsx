@@ -12,6 +12,7 @@ const SRC_LABEL: Record<string, string> = {
   manual: '✍ A mano',
   registro: '🧾 Registro',
   estacion: '⛽ Estación',
+  taller: '🔧 Taller (mantenimiento/reparación)',
 };
 const localDate = (iso: string) => new Date(iso).toLocaleDateString('en-CA');
 const daysBetween = (a: string, b: string) =>
@@ -54,8 +55,15 @@ export default function AuditoriaKm() {
         if (h.vehicle_id !== v.id) return;
         const i = h.changed_by.indexOf(':');
         const src = i > 0 ? h.changed_by.slice(0, i) : 'manual';
-        if (src === 'gps' || src === 'combustible') return; // combustible ya está en fuel_loads
+        if (src === 'gps' || src === 'combustible' || src === 'registro') return; // combustible ya está en fuel_loads; registro = mantenimiento/reparación con su fecha real
         rs.push({ date: localDate(h.recorded_at), km: h.km, src, who: i > 0 ? h.changed_by.slice(i + 1) : h.changed_by });
+      });
+      // Mantenimientos y reparaciones: el km se anota en el taller leyendo el tablero (puede venir redondeado)
+      maintenance.forEach((m) => {
+        if (m.vehicle_id === v.id && m.km !== null) rs.push({ date: m.date, km: m.km, src: 'taller', who: m.type });
+      });
+      repairs.forEach((r) => {
+        if (r.vehicle_id === v.id && r.km !== null) rs.push({ date: r.date, km: r.km, src: 'taller', who: r.description });
       });
       rs.sort((a, b) => a.date.localeCompare(b.date) || a.km - b.km);
 
@@ -114,7 +122,7 @@ export default function AuditoriaKm() {
 
     flags.sort((a, b) => b.to.date.localeCompare(a.to.date));
     return { flags, stale, services, discarded };
-  }, [vehicles, trips, fuel_loads, km_history, settings]);
+  }, [vehicles, trips, fuel_loads, km_history, maintenance, repairs, settings]);
 
   return (
     <>

@@ -3,6 +3,7 @@ import { useData } from './data';
 import { sb } from './supabase';
 import { recordKmChange } from './history';
 import { checkReading, gpsBetween, lastGpsDate, tolerance, type TripLite } from './kmAudit';
+import { lastReading } from './kmAnchor';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
 import { DOC_VEHICLE_DEFAULT, isFuel, nrm, okOdo, pDate, pNum, todayStr } from './util';
@@ -69,7 +70,8 @@ async function selectAll<T>(
 }
 
 export function useImporters() {
-  const { vehicles, trips, fuel_loads, km_history, reload } = useData();
+  const { vehicles, trips, fuel_loads, km_history, maintenance, repairs, reload } = useData();
+  const ref = { fuel_loads, km_history, maintenance, repairs };
 
   /** Devuelve patente→vehículo; ofrece crear los vehículos que no existan todavía. */
   async function ensureVehicles(found: Map<string, string>): Promise<Map<string, Vehicle>> {
@@ -161,7 +163,13 @@ export function useImporters() {
     // Se suman TODOS los días posteriores a la última lectura (no solo los nuevos): cada km se cuenta una sola vez
     // porque km_date marca hasta dónde ya está incluido en el km actual.
     const inList = new Set(list.map((t) => t.vehicle_id));
-    const kds = [...byPlate.values()].filter((v) => inList.has(v.id) && v.km_date).map((v) => v.km_date!);
+    const anchorBy = new Map(
+      [...byPlate.values()].filter((v) => inList.has(v.id)).map((v) => [v.id, lastReading(v.id, ref)] as const)
+    );
+    const kds = [...byPlate.values()]
+      .filter((v) => inList.has(v.id))
+      .flatMap((v) => [v.km_date, anchorBy.get(v.id)?.date ?? null])
+      .filter((x): x is string => !!x);
     const minKd = kds.length ? kds.reduce((a, b) => (a < b ? a : b)) : '2000-01-01';
     const dbT = await selectAll<{ vehicle_id: string; date: string; km_calc: number }>((a, b) =>
       sb().from('trips').select('vehicle_id,date,km_calc').gt('date', minKd).order('id').range(a, b)
@@ -174,6 +182,27 @@ export function useImporters() {
     for (const [vid, arr] of byVeh) {
       const v = [...byPlate.values()].find((x) => x.id === vid);
       if (!v) continue;
+      // Preferido: última lectura REAL (estación, km a mano, mantenimiento/reparación) + todo el GPS posterior.
+      // Se recalcula siempre desde ahí, así un km guardado de origen dudoso no se arrastra. Requiere que el GPS cubra desde la lectura.
+      const anchor = anchorBy.get(vid) ?? null;
+      const firstGps = [...trips.filter((t) => t.vehicle_id === vid).map((t) => t.date), ...arr.map((t) => t.date)].reduce<string | null>(
+        (m, d) => (!m || d < m ? d : m),
+        null
+      );
+      if (anchor && firstGps && firstGps <= anchor.date) {
+        const after = arr.filter((t) => t.date > anchor.date);
+        const km2 = Math.round(anchor.km + after.reduce((s, t) => s + t.km_calc, 0));
+        const kd2 = after.reduce((mx, t) => (t.date > mx ? t.date : mx), anchor.date);
+        if (km2 !== v.km || kd2 !== v.km_date) {
+          const { error } = await sb().from('vehicles').update({ km: km2, km_date: kd2 }).eq('id', vid);
+          if (error) throw error;
+          if (km2 !== v.km) {
+            await recordKmChange(vid, km2, v.km, 'gps');
+            updated++;
+          }
+        }
+        continue;
+      }
       if (v.km === null || !v.km_date) {
         if (arr.some((t) => t.km_calc > 0)) noBase.push(v.plate);
         continue;
@@ -363,20 +392,12 @@ export function useImporters() {
       odoDate: string | null;
       odo: number | null;
     };
-    // Ancla = última lectura de TABLERO confiable: carga de estación aceptada o km cargado a mano (la más reciente).
+    // Ancla = última lectura REAL de tablero (carga de estación válida, km a mano, mantenimiento o reparación).
     // El km "calculado con GPS" no es una lectura: nunca se usa como ancla si hay una lectura real.
     const anchor = new Map<string, { date: string; km: number }>();
-    fuel_loads.forEach((f) => {
-      if (f.km === null || f.km === undefined) return;
-      const a = anchor.get(f.vehicle_id);
-      if (!a || f.date > a.date || (f.date === a.date && f.km > a.km)) anchor.set(f.vehicle_id, { date: f.date, km: f.km });
-    });
-    km_history.forEach((h) => {
-      const src = h.changed_by.includes(':') ? h.changed_by.slice(0, h.changed_by.indexOf(':')) : 'manual';
-      if (src === 'gps' || src === 'combustible') return;
-      const date = new Date(h.recorded_at).toLocaleDateString('en-CA');
-      const a = anchor.get(h.vehicle_id);
-      if (!a || date >= a.date) anchor.set(h.vehicle_id, { date, km: h.km });
+    byPlate.forEach((v) => {
+      const r = lastReading(v.id, ref);
+      if (r) anchor.set(v.id, { date: r.date, km: r.km });
     });
     const state = new Map<string, St>();
     byPlate.forEach((v) => {
