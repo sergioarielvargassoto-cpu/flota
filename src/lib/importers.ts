@@ -2,7 +2,7 @@
 import { useData } from './data';
 import { sb } from './supabase';
 import { recordKmChange } from './history';
-import { checkReading, gpsBetween, lastGpsDate, tolerance, type TripLite } from './kmAudit';
+import { gpsRange, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
 import { lastReading } from './kmAnchor';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
@@ -326,7 +326,6 @@ export function useImporters() {
         if (!vt.length) continue;
         const first = vt.reduce((m, t) => (t.date < m ? t.date : m), vt[0].date);
         const last = vt.reduce((m, t) => (t.date > m ? t.date : m), vt[0].date);
-        const daily = Math.max(50, vt.reduce((s2, t) => s2 + (Number(t.km_calc) || 0), 0) / vt.length);
         let a = arr[0];
         for (const cur of arr.slice(1)) {
           if (cur.date === a.date) continue;
@@ -334,11 +333,13 @@ export function useImporters() {
             a = cur;
             continue;
           }
-          const c = checkReading(allTrips, vid, a, cur);
-          if (c.ok || Math.abs(c.diff) <= tolerance(c.gps) + daily) a = cur;
+          // El GPS suma días completos y la carga no tiene hora: se compara contra el RANGO posible, no contra un solo número
+          const rg = gpsRange(allTrips, vid, a.date, cur.date);
+          const out = outsideRange(cur.km - a.km, rg);
+          if (out === 0) a = cur;
           else if (flags.length < 15)
             flags.push(
-              `${vehById.get(vid)?.plate ?? vid} ${cur.date}: declaró ${cur.km.toLocaleString('es-AR')}, GPS indica ~${c.expected.toLocaleString('es-AR')} (dif ${c.diff > 0 ? '+' : ''}${c.diff} km)`
+              `${vehById.get(vid)?.plate ?? vid} ${cur.date}: odómetro avanzó ${(cur.km - a.km).toLocaleString('es-AR')} km desde el ${a.date}; el GPS permite entre ${Math.round(rg.min).toLocaleString('es-AR')} y ${Math.round(rg.max).toLocaleString('es-AR')} km`
             );
         }
       }
@@ -426,16 +427,18 @@ export function useImporters() {
       if (fecha <= a.date) {
         const dd = daysBetween(fecha, a.date);
         if (lg && lg >= a.date) {
-          const gps = gpsBetween(trips, vid, fecha, a.date);
-          return Math.abs(odo - (a.km - gps)) <= tolerance(gps) + 400;
+          const rg = gpsRange(trips, vid, fecha, a.date);
+          return outsideRange(a.km - odo, rg) === 0;
         }
         return odo > 0 && odo <= a.km + 300 && odo >= a.km - (dd * 700 + 1000);
       }
       if (!lg || lg < fecha) return okOdo(a.km, a.date, fecha, odo); // GPS aún sin cargar: se audita al subir Gestya
-      const c = checkReading(trips, vid, a, { date: fecha, km: odo });
-      if (!c.ok && alerts.length < 12)
-        alerts.push(`${plate} ${fecha}: declaró ${odo.toLocaleString('es-AR')}, GPS indica ~${c.expected.toLocaleString('es-AR')} (dif ${c.diff > 0 ? '+' : ''}${c.diff} km)`);
-      return c.ok;
+      // Rango posible de GPS entre la lectura de referencia y esta (la carga no tiene hora: ver gpsRange)
+      const rg = gpsRange(trips, vid, a.date, fecha);
+      const ok = outsideRange(odo - a.km, rg) === 0;
+      if (!ok && alerts.length < 12)
+        alerts.push(`${plate} ${fecha}: declaró ${odo.toLocaleString('es-AR')} (avanzó ${(odo - a.km).toLocaleString('es-AR')} km desde el ${a.date}); el GPS permite entre ${Math.round(rg.min).toLocaleString('es-AR')} y ${Math.round(rg.max).toLocaleString('es-AR')} km`);
+      return ok;
     };
     const rows: object[] = [];
     let dup = 0,

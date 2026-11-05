@@ -4,7 +4,7 @@
  * carga del 27/09 y otra del 03/10 se encadenan correctamente aunque cambie el mes.
  */
 import type { Driver, Fuel, Infraction, Maint, Repair, Trip, Vehicle } from './types';
-import { gpsBetween, tolerance } from './kmAudit';
+import { gpsRange, outsideRange } from './kmAudit';
 
 export type Data = {
   vehicles: Vehicle[];
@@ -110,8 +110,10 @@ export type VehicleMonth = {
   l100Band: number | null; // incertidumbre por nivel de tanque desconocido (±L/100 km): capacidad ÷ km de la ventana
   l100Signif: boolean; // el desvío supera el 25 % Y el margen por tanque
   opKm: number | null; // km operativos: GPS si tiene, si no odómetro
-  gpsWinKm: number | null; // km del GPS en la MISMA ventana que el odómetro (entre la carga base y la última del mes)
-  gpsVsOdo: number | null; // odoKm - gpsWinKm
+  gpsWinKm: number | null; // km del GPS en la MISMA ventana que el odómetro (punto medio del rango)
+  gpsWinMin: number | null; // mínimo posible (solo días completos entre las dos cargas)
+  gpsWinMax: number | null; // máximo posible (incluye los dos días de las cargas)
+  gpsVsOdo: number | null; // 0 = el odómetro cae dentro del rango de GPS; ≠0 = cuánto queda fuera
   maintCost: number;
   repairCost: number;
   totalCost: number;
@@ -140,7 +142,9 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
     const before = acc.filter((f) => f.date < from);
     let odoKm: number | null = null,
       winLiters: number | null = null,
-      gpsWinKm: number | null = null;
+      gpsWinKm: number | null = null,
+      gpsWinMin: number | null = null,
+      gpsWinMax: number | null = null;
     if (inMonth.length) {
       const base = before.length ? before[before.length - 1] : inMonth[0];
       const last = inMonth[inMonth.length - 1];
@@ -153,7 +157,12 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
           (f) => f.vehicle_id === v.id && isFuelProduct(f.product) && (f.km === null || f.km === undefined) && f.date > base.date && f.date <= last.date
         );
         winLiters = sum(after.map((f) => Number(f.liters) || 0)) + sum(rejectedIn.map((f) => Number(f.liters) || 0));
-        if (hasGps) gpsWinKm = gpsBetween(d.trips, v.id, base.date, last.date);
+        if (hasGps) {
+          const rg = gpsRange(d.trips, v.id, base.date, last.date);
+          gpsWinMin = rg.min;
+          gpsWinMax = rg.max;
+          gpsWinKm = (rg.min + rg.max) / 2;
+        }
       }
     }
     // Km del mes calendario por odómetro: lectura interpolada al inicio y al fin del mes. Mes siguiente = mismo borde => sin doble conteo.
@@ -167,7 +176,7 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
     const maxLoad = Math.max(0, ...d.fuel_loads.filter((f) => f.vehicle_id === v.id && isFuelProduct(f.product)).map((f) => Number(f.liters) || 0));
     const tankCap = Math.max(maxLoad, 40);
     // Si el GPS casi no registró (equipo sin señal / apagado) frente al odómetro, se usa el odómetro
-    const gpsDead = hasGps && gpsWinKm !== null && odoKm !== null && gpsWinKm < 0.2 * odoKm;
+    const gpsDead = hasGps && gpsWinMax !== null && odoKm !== null && gpsWinMax < 0.2 * odoKm;
     const opKm = hasGps && !gpsDead ? gpsKm : (odoCalKm ?? odoKm ?? gpsKm);
     const kmSource: 'gps' | 'odometro' | 'ninguno' = opKm === null ? 'ninguno' : hasGps && !gpsDead ? 'gps' : 'odometro';
     const maintCost = sum(d.maintenance.filter((m) => m.vehicle_id === v.id && m.date >= from && m.date < to).map((m) => Number(m.cost) || 0));
@@ -199,7 +208,9 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
       l100Signif: false,
       opKm,
       gpsWinKm,
-      gpsVsOdo: gpsWinKm !== null && odoKm !== null ? odoKm - gpsWinKm : null,
+      gpsWinMin,
+      gpsWinMax,
+      gpsVsOdo: gpsWinMin !== null && gpsWinMax !== null && odoKm !== null ? outsideRange(odoKm, { min: gpsWinMin, max: gpsWinMax }) : null,
       maintCost,
       repairCost,
       totalCost: total,
@@ -446,8 +457,10 @@ export type PairRow = {
   dKm: number;
   days: number;
   sameDay: boolean;
-  gpsKm: number | null;
-  gpsDiff: number | null;
+  gpsKm: number | null; // punto medio del rango
+  gpsMin: number | null;
+  gpsMax: number | null;
+  gpsDiff: number | null; // 0 = dentro del rango de GPS
   l100: number | null; // indicativo: litros de la carga que cierra el tramo / km (no sabemos con cuánto salió)
   flags: string[];
 };
@@ -477,16 +490,21 @@ export function fuelPairs(d: Data, from: string, to: string): PairRow[] {
       if (dKm <= 0) flags.push('El odómetro no avanza');
       if (sameDay) flags.push('Mismo día: el orden real es incierto (revisar hora en el remito)');
       let gpsKm: number | null = null,
+        gpsMin: number | null = null,
+        gpsMax: number | null = null,
         gpsDiff: number | null = null;
       if (first && last && a.f.date >= first && b.f.date <= last && !sameDay) {
-        gpsKm = gpsBetween(d.trips, v.id, a.f.date, b.f.date);
-        gpsDiff = dKm - gpsKm;
-        if (Math.abs(gpsDiff) > tolerance(gpsKm) + daily)
-          flags.push(gpsDiff > 0 ? 'El odómetro marca bastante más km que el GPS' : 'El GPS marca bastante más km que el odómetro');
+        const rg = gpsRange(d.trips, v.id, a.f.date, b.f.date);
+        gpsMin = rg.min;
+        gpsMax = rg.max;
+        gpsKm = (rg.min + rg.max) / 2;
+        gpsDiff = outsideRange(dKm, rg);
+        if (gpsDiff < 0) flags.push(`El odómetro marca ${Math.abs(gpsDiff)} km MENOS que el mínimo que registró el GPS (aun con las cargas en el extremo del día)`);
+        if (gpsDiff > 0) flags.push(`El odómetro marca ${gpsDiff} km MÁS que el máximo que registró el GPS (aun contando los dos días completos)`);
       }
       const l100 = dKm > 0 ? ((Number(b.f.liters) || 0) / dKm) * 100 : null;
       if (l100 !== null && dKm > 150 && (l100 < 4 || l100 > 30)) flags.push('Consumo implícito fuera de rango en este tramo (indicativo)');
-      out.push({ vehicle: v, prev: a.f, cur: b.f, prevKm: a.odo, curKm: b.odo, dKm, days, sameDay, gpsKm, gpsDiff, l100, flags });
+      out.push({ vehicle: v, prev: a.f, cur: b.f, prevKm: a.odo, curKm: b.odo, dKm, days, sameDay, gpsKm, gpsMin, gpsMax, gpsDiff, l100, flags });
     }
   }
   return out.sort((a, b) => b.cur.date.localeCompare(a.cur.date));
@@ -608,13 +626,13 @@ export function insights(
     );
   // GPS vs odómetro
   cur
-    .filter((r) => r.gpsVsOdo !== null && r.gpsWinKm !== null && Math.abs(r.gpsVsOdo) > tolerance(r.gpsWinKm) + 100)
+    .filter((r) => r.gpsVsOdo !== null && r.gpsVsOdo !== 0)
     .forEach((r) =>
       out.push({
         sev: 'warning',
         area: 'Auditoría',
-        title: `${r.v.plate}: el odómetro de las estaciones y el GPS difieren en ${f1(Math.abs(r.gpsVsOdo as number))} km`,
-        detail: `Entre las mismas dos cargas: odómetro ${f1(r.odoKm as number)} km contra GPS ${f1(r.gpsWinKm as number)} km. ${(r.gpsWinKm as number) < 0.2 * (r.odoKm as number) ? 'El GPS casi no registró: revisar el equipo.' : 'Puede ser GPS sin señal, uso fuera de cobertura o lecturas mal cargadas.'}`,
+        title: `${r.v.plate}: el odómetro queda ${f1(Math.abs(r.gpsVsOdo as number))} km ${(r.gpsVsOdo as number) < 0 ? 'por debajo' : 'por encima'} del rango posible del GPS`,
+        detail: `Entre las mismas dos cargas: odómetro ${f1(r.odoKm as number)} km; el GPS permite entre ${f1(r.gpsWinMin as number)} y ${f1(r.gpsWinMax as number)} km (según a qué hora del día se cargó). ${(r.gpsWinMax as number) < 0.2 * (r.odoKm as number) ? 'El GPS casi no registró: revisar el equipo.' : 'Puede ser GPS sin señal, uso fuera de cobertura o una lectura mal cargada.'}`,
       })
     );
   // Lecturas descartadas por chofer

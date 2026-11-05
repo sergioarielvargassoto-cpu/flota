@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useData } from '@/lib/data';
 import { fd, isFuel, num } from '@/lib/util';
 import { Badge } from '@/components/Badge';
-import { gpsBetween, tolerance } from '@/lib/kmAudit';
+import { gpsRange, outsideRange } from '@/lib/kmAudit';
 import { fuelPairs, monthLabel, monthRange, vehicleMonth, availableMonths, type Data } from '@/lib/fleetStats';
 
 type Reading = { date: string; km: number; src: string; who: string; rejected?: boolean };
@@ -39,7 +39,7 @@ export default function AuditoriaKm() {
 
   const { flags, stale, services, discarded } = useMemo(() => {
     const today = new Date().toLocaleDateString('en-CA');
-    const flags: { plate: string; from: Reading; to: Reading; gps: number; expected: number; diff: number }[] = [];
+    const flags: { plate: string; from: Reading; to: Reading; gps: number; gpsMin: number; expected: number; diff: number }[] = [];
     const stale: { plate: string; last: Reading | null; days: number | null }[] = [];
     let discarded = 0;
 
@@ -89,20 +89,22 @@ export default function AuditoriaKm() {
         if (r.date <= anchor.date) continue;
         let flagged = false;
         if (first && last && anchor.date >= first) {
+          // Se compara contra el RANGO posible de GPS (la carga no tiene hora y el GPS suma días completos)
           const upTo = r.date < last ? r.date : last;
-          const gps = gpsBetween(trips, v.id, anchor.date, upTo);
+          const rg = gpsRange(trips, v.id, anchor.date, upTo);
           const extra = Math.max(0, daysBetween(last, r.date)) * 400; // días sin GPS cargado todavía
-          const expected = anchor.km + gps;
-          const diff = r.km - expected;
-          if (diff > tolerance(gps) + extra || diff < -tolerance(gps)) {
+          const delta = r.km - anchor.km;
+          let diff = outsideRange(delta, { min: rg.min, max: rg.max + extra });
+          if (diff !== 0) {
             flagged = true;
             flags.push({
               plate: v.plate,
               from: anchor,
               to: r,
-              gps: Math.round(gps),
-              expected: Math.round(expected),
-              diff: Math.round(diff),
+              gps: Math.round(rg.max),
+              expected: Math.round(diff < 0 ? anchor.km + rg.min : anchor.km + rg.max),
+              diff,
+              gpsMin: Math.round(rg.min),
             });
           }
         }
@@ -145,9 +147,9 @@ export default function AuditoriaKm() {
                 <th>Vehículo</th>
                 <th>Lectura anterior</th>
                 <th>Lectura nueva</th>
-                <th>GPS en el tramo</th>
-                <th>Se esperaba</th>
-                <th>Diferencia</th>
+                <th>GPS máx. del tramo</th>
+                <th>Límite del rango</th>
+                <th>Fuera del rango</th>
                 <th>Origen</th>
               </tr>
             </thead>
@@ -210,7 +212,7 @@ export default function AuditoriaKm() {
         </label>
       </div>
       <p className="muted">
-        Solo se comparan lecturas válidas; las cargas con km mal digitado en el surtidor se listan en el <b>Informe de gestión</b> (sección “Calidad de los km declarados”). La comparación con el GPS admite un margen de un día de recorrido, porque el GPS suma días completos. Cada fila es el tramo entre una carga y la anterior del mismo vehículo (incluye la última del mes anterior, así que
+        Solo se comparan lecturas válidas; las cargas con km mal digitado en el surtidor se listan en el <b>Informe de gestión</b> (sección “Calidad de los km declarados”). El GPS suma días completos y las cargas no traen hora (una carga a la 1 AM deja casi todo el día después; una a las 23 h, casi todo antes), por eso cada tramo se compara contra un <b>rango</b>: el mínimo son solo los días completos entre ambas cargas y el máximo incluye además los dos días de las cargas. Solo se marca lo que queda <b>fuera</b> de ese rango. Cada fila es el tramo entre una carga y la anterior del mismo vehículo (incluye la última del mes anterior, así que
         el cruce de meses queda cubierto). El consumo de un tramo suelto es <b>indicativo</b>: no se sabe con cuánto
         combustible salió el vehículo. El control confiable es el consumo acumulado de todo el mes (tabla siguiente).
       </p>
@@ -225,7 +227,7 @@ export default function AuditoriaKm() {
                   <th>Carga anterior</th>
                   <th>Carga</th>
                   <th>Km odómetro</th>
-                  <th>Km GPS</th>
+                  <th>Km GPS (mín – máx)</th>
                   <th>Litros</th>
                   <th>L/100 (indic.)</th>
                   <th>Alertas</th>
@@ -245,7 +247,13 @@ export default function AuditoriaKm() {
                       <div className="muted">{p.cur.station}</div>
                     </td>
                     <td>{num(p.dKm)}</td>
-                    <td>{p.gpsKm === null ? <span className="muted">sin GPS</span> : num(Math.round(p.gpsKm))}</td>
+                    <td>
+                      {p.gpsMin === null || p.gpsMax === null ? (
+                        <span className="muted">sin GPS</span>
+                      ) : (
+                        `${num(Math.round(p.gpsMin))} – ${num(Math.round(p.gpsMax))}`
+                      )}
+                    </td>
                     <td>{num(p.cur.liters)}</td>
                     <td>{p.l100 === null ? '—' : p.l100.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
                     <td>
@@ -276,7 +284,7 @@ export default function AuditoriaKm() {
             <tr>
               <th>Vehículo</th>
               <th>Km odómetro</th>
-              <th>Km GPS (mismo tramo)</th>
+              <th>Km GPS (mín – máx)</th>
               <th>Diferencia</th>
               <th>Litros (ventana)</th>
               <th>L/100 km</th>
@@ -294,8 +302,14 @@ export default function AuditoriaKm() {
                     <b>{w.v.plate}</b>
                   </td>
                   <td>{w.odoKm === null ? '—' : num(w.odoKm)}</td>
-                  <td>{w.hasGps ? (w.gpsWinKm === null ? '—' : num(Math.round(w.gpsWinKm))) : <span className="muted">sin GPS</span>}</td>
-                  <td>{w.gpsVsOdo === null ? '—' : num(Math.round(w.gpsVsOdo))}</td>
+                  <td>
+                    {w.hasGps ? (
+                      w.gpsWinMin === null || w.gpsWinMax === null ? '—' : `${num(Math.round(w.gpsWinMin))} – ${num(Math.round(w.gpsWinMax))}`
+                    ) : (
+                      <span className="muted">sin GPS</span>
+                    )}
+                  </td>
+                  <td>{w.gpsVsOdo === null ? '—' : w.gpsVsOdo === 0 ? '✔ dentro del rango' : `⚠ ${num(w.gpsVsOdo)} km fuera`}</td>
                   <td>{w.winLiters === null ? '—' : num(Math.round(w.winLiters))}</td>
                   <td>{w.l100 === null ? '—' : w.l100.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
                   <td>{w.l100Ref === null ? '—' : w.l100Ref.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>

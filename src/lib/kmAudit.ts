@@ -35,3 +35,31 @@ export function checkReading(
   const diff = cur.km - expected;
   return { ok: Math.abs(diff) <= tolerance(gps), expected: Math.round(expected), diff: Math.round(diff), gps: Math.round(gps) };
 }
+
+/**
+ * Rango de km de GPS entre dos lecturas de odómetro. Las cargas no tienen hora, y el GPS suma DÍAS COMPLETOS:
+ * una carga a la 1 AM deja casi todo su día después de la carga; una a las 23 h, casi todo antes.
+ *  - mínimo: solo los días completos ENTRE ambas fechas (cada carga en el extremo del día más desfavorable);
+ *  - máximo: esos días más los dos días de las cargas completos.
+ * Un odómetro coherente cae dentro de [mínimo, máximo].
+ */
+export function gpsRange(trips: TripLite[], vid: string, from: string, to: string): { min: number; max: number } {
+  let min = 0,
+    max = 0;
+  for (const t of trips) {
+    if (t.vehicle_id !== vid || t.date < from || t.date > to) continue;
+    const km = Number(t.km_calc) || 0;
+    max += km;
+    if (t.date > from && t.date < to) min += km;
+  }
+  return { min, max };
+}
+/** Margen sobre el rango: error del GPS y redondeo del tablero. */
+export const rangeTol = (max: number) => Math.max(50, max * 0.03);
+/** Distancia a la que el odómetro queda FUERA del rango de GPS: 0 = dentro; negativo = marcó menos que el mínimo; positivo = más que el máximo. */
+export function outsideRange(delta: number, r: { min: number; max: number }): number {
+  const tol = rangeTol(r.max);
+  if (delta < r.min - tol) return Math.round(delta - r.min);
+  if (delta > r.max + tol) return Math.round(delta - r.max);
+  return 0;
+}
