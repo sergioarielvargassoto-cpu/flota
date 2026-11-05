@@ -36,9 +36,9 @@ export const TANK_CAPACITY: { re: RegExp; liters: number; ok: boolean; label: st
   { re: /berlingo/i, liters: 60, ok: false, label: 'Citroën Berlingo (≈ 60 L, a verificar)' },
   { re: /transit/i, liters: 80, ok: false, label: 'Ford Transit 2.2 (≈ 80 L, una sola fuente)' },
   { re: /sprinter/i, liters: 100, ok: false, label: 'Mercedes-Benz Sprinter (71 L / 93 L de fábrica; 100 L como tope)' },
-  { re: /atego/i, liters: 300, ok: false, label: 'Mercedes-Benz Atego (210 L en 1726; hasta 300 L en 1725; a verificar el 1721)' },
-  { re: /cargo/i, liters: 250, ok: false, label: 'Ford Cargo 1119 (sin dato oficial; tope estimado)' },
-  { re: /(^|\s)4\.?000|f-?4000/i, liters: 120, ok: false, label: 'Ford F-4000 (sin dato oficial; tope estimado)' },
+  { re: /atego/i, liters: 300, ok: true, label: 'Mercedes-Benz Atego (300 L, confirmado por el responsable)' },
+  { re: /cargo/i, liters: 150, ok: true, label: 'Ford Cargo 1119 (150 L, confirmado por el responsable)' },
+  { re: /(^|\s)4\.?000|f-?4000/i, liters: 140, ok: true, label: 'Ford F-4000 (140 L, confirmado por el responsable)' },
 ];
 /** Capacidad máxima de tanque (L) del vehículo según marca/modelo; si no se conoce, MAX_PLAUSIBLE_LOAD_L. */
 export function tankMaxL(v: { brand?: string | null; model?: string | null } | null | undefined): number {
@@ -159,7 +159,7 @@ export const PARAM_DOCS: ParamDoc[] = [
   {
     name: 'Capacidad de tanque (máximo por carga)',
     value: `mayor carga vista del vehículo (mínimo ${DEFAULT_TANK_L} L), sin superar el máximo de su modelo: ${TANK_CAPACITY.map((t) => `${t.label.split(' (')[0]} ${t.liters} L${t.ok ? '' : '*'}`).join(' · ')}; modelo no listado: ${MAX_PLAUSIBLE_LOAD_L} L`,
-    why: 'Una carga mayor a la capacidad del tanque es físicamente imposible (error de tipeo) y no debe usarse para estimar el tanque. El tope es el mayor valor razonable de fábrica de cada modelo, para no descartar cargas verdaderas. *Solo la Kangoo está confirmada con ficha oficial; el resto es estimación a verificar con la ficha o el manual del vehículo.',
+    why: 'Una carga mayor a la capacidad del tanque es físicamente imposible (error de tipeo) y no debe usarse para estimar el tanque. El tope es el mayor valor razonable de fábrica de cada modelo, para no descartar cargas verdaderas. *Confirmados (sin *): Kangoo con ficha oficial y Cargo, F-4000 y Atego por el responsable; el resto es estimación a verificar con la ficha o el manual del vehículo.',
     review: 'Verificar los marcados con *; idealmente guardar la capacidad en la ficha de cada vehículo.',
   },
   {
