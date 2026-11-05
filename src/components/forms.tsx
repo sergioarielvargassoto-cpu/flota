@@ -392,8 +392,10 @@ export function InfractionForm({ id, onClose }: { id?: string; onClose: () => vo
 }
 
 export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: () => void }) {
-  const { update, reload } = useData();
+  const { update, reload, trips } = useData();
   const [newKm, setNewKm] = useState(vehicle.km?.toString() ?? '');
+  // Fecha en que se LEYÓ el km en el tablero (puede ser anterior a hoy): evita mezclar lecturas de distintos días
+  const [readDate, setReadDate] = useState(todayStr());
   const [busy, setBusy] = useState(false);
   const kmChange = vehicle.km !== null ? parseInt(newKm || '0') - vehicle.km : null;
 
@@ -424,7 +426,10 @@ export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
             e.preventDefault();
             if (newKm === '' || isNaN(Number(newKm))) return alert('Ingresa un número válido');
             const num = Number(newKm);
-            if (vehicle.km !== null && num < vehicle.km) {
+            if (!readDate || readDate > todayStr()) return alert('La fecha de la lectura no puede estar vacía ni ser futura');
+            if (vehicle.km_date && readDate < vehicle.km_date) {
+              if (!confirm(`Esta lectura (${readDate.split('-').reverse().join('/')}) es ANTERIOR a la última registrada (${vehicle.km_date.split('-').reverse().join('/')}). Va a quedar como punto de partida desde esa fecha y se sumará el GPS posterior. ¿Continuar?`)) return;
+            } else if (vehicle.km !== null && num < vehicle.km) {
               // Permitido (p. ej. un km inflado por GPS), pero con confirmación explícita
               if (!confirm(`El nuevo km (${num.toLocaleString('es-AR')}) es MENOR al actual (${vehicle.km.toLocaleString('es-AR')}). ¿Confirmás que el tablero marca ese valor?`)) return;
             } else if (vehicle.km !== null && num - vehicle.km > 5000) {
@@ -432,8 +437,15 @@ export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
             }
             setBusy(true);
             try {
-              await update('vehicles', vehicle.id, { km: num, km_date: todayStr() });
-              await recordKmChange(vehicle.id, num, vehicle.km, 'manual');
+              // km actual = lectura + km de GPS posteriores a la fecha de la lectura; km_date = hasta dónde llega ese dato
+              const after = trips.filter((t) => t.vehicle_id === vehicle.id && t.date > readDate);
+              const gpsAfter = after.reduce((s, t) => s + (Number(t.km_calc) || 0), 0);
+              const kmNow = Math.round(num + gpsAfter);
+              const kmDate = after.reduce((m, t) => (t.date > m ? t.date : m), readDate);
+              await update('vehicles', vehicle.id, { km: kmNow, km_date: kmDate });
+              await recordKmChange(vehicle.id, num, vehicle.km, 'manual', readDate);
+              if (gpsAfter > 0) alert(`Lectura del ${readDate.split('-').reverse().join('/')}: ${num.toLocaleString('es-AR')} km.
+Se sumaron ${Math.round(gpsAfter).toLocaleString('es-AR')} km de GPS posteriores: el km actual queda en ${kmNow.toLocaleString('es-AR')} (al ${kmDate.split('-').reverse().join('/')}).`);
               await reload('km_history');
               onClose();
             } catch (e) {
@@ -443,6 +455,11 @@ export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
             }
           }}
         >
+          <div className="fg">
+            <label htmlFor="km_date_input">Fecha en que se leyó el km del tablero *</label>
+            <input id="km_date_input" type="date" value={readDate} max={todayStr()} onChange={(e) => setReadDate(e.target.value)} />
+            <small className="muted">Si lo leíste hace unos días, poné ese día: el GPS posterior se suma desde esa fecha.</small>
+          </div>
           <div className="fg">
             <label htmlFor="km_input">Nuevo kilometraje *</label>
             <input

@@ -5,6 +5,7 @@
  */
 import type { Driver, Fuel, Infraction, Maint, Repair, Trip, Vehicle } from './types';
 import { gpsRange, outsideRange } from './kmAudit';
+import * as PRM from './params';
 
 export type Data = {
   vehicles: Vehicle[];
@@ -35,8 +36,7 @@ const median = (a: number[]) => {
  * Margen de desvío de consumo aceptable según el tipo de vehículo. Septiembre: utilitarios 9,3–10,1 L/100 (muy parejos),
  * camionetas 10,9–13,3, camiones 19,6–24,0. Valores provisionales: recalibrar cuando haya más meses de datos.
  */
-export const typeBand = (type: string | null | undefined): number =>
-  ({ Utilitario: 0.15, Auto: 0.15, Camioneta: 0.2, Furgón: 0.2, Camión: 0.3 } as Record<string, number>)[type ?? ''] ?? 0.25;
+export const typeBand = (type: string | null | undefined): number => PRM.CONSUMPTION_BAND[type ?? ''] ?? PRM.CONSUMPTION_BAND_DEFAULT;
 
 export const monthKey = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
 export const monthRange = (key: string) => {
@@ -181,9 +181,9 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
     }
     const l100 = odoKm && winLiters ? (winLiters / odoKm) * 100 : null;
     const maxLoad = Math.max(0, ...d.fuel_loads.filter((f) => f.vehicle_id === v.id && isFuelProduct(f.product)).map((f) => Number(f.liters) || 0));
-    const tankCap = Math.max(maxLoad, 40);
+    const tankCap = Math.max(maxLoad, PRM.DEFAULT_TANK_L);
     // Si el GPS casi no registró (equipo sin señal / apagado) frente al odómetro, se usa el odómetro
-    const gpsDead = hasGps && gpsWinMax !== null && odoKm !== null && gpsWinMax < 0.2 * odoKm;
+    const gpsDead = hasGps && gpsWinMax !== null && odoKm !== null && gpsWinMax < PRM.GPS_DEAD_RATIO * odoKm;
     const opKm = hasGps && !gpsDead ? gpsKm : (odoCalKm ?? odoKm ?? gpsKm);
     const kmSource: 'gps' | 'odometro' | 'ninguno' = opKm === null ? 'ninguno' : hasGps && !gpsDead ? 'gps' : 'odometro';
     const maintCost = sum(d.maintenance.filter((m) => m.vehicle_id === v.id && m.date >= from && m.date < to).map((m) => Number(m.cost) || 0));
@@ -493,7 +493,14 @@ export function driverTrust(d: Data): Map<string, Trust> {
       validPct,
       lo: lo * 100,
       hi: hi * 100,
-      level: r.loads < 4 ? 'sin historial' : r.loads >= 8 && validPct >= 90 && lo >= 0.65 ? 'alta' : r.loads >= 5 && hi <= 0.8 ? 'baja' : 'media',
+      level:
+        r.loads < PRM.TRUST.sinHistorialLoads
+          ? 'sin historial'
+          : r.loads >= PRM.TRUST.altaMinLoads && validPct >= PRM.TRUST.altaMinPct && lo >= PRM.TRUST.altaMinLower / 100
+            ? 'alta'
+            : r.loads >= PRM.TRUST.bajaMinLoads && hi <= PRM.TRUST.bajaMaxUpper / 100
+              ? 'baja'
+              : 'media',
     });
   });
   return out;
@@ -558,7 +565,7 @@ export function fuelPairs(d: Data, from: string, to: string): PairRow[] {
         if (gpsDiff > 0) flags.push(`El odómetro marca ${gpsDiff} km MÁS que el máximo que registró el GPS (aun contando los dos días completos)`);
       }
       const l100 = dKm > 0 ? ((Number(b.f.liters) || 0) / dKm) * 100 : null;
-      if (l100 !== null && dKm > 150 && (l100 < 4 || l100 > 30)) flags.push('Consumo implícito fuera de rango en este tramo (indicativo)');
+      if (l100 !== null && dKm > PRM.PAIR_MIN_KM && (l100 < PRM.PAIR_L100_MIN || l100 > PRM.PAIR_L100_MAX)) flags.push('Consumo implícito fuera de rango en este tramo (indicativo)');
       const tr = trustOf(trust, b.f.driver_name);
       if (gpsDiff) {
         // Misma discrepancia, distinta lectura según quién cargó: el historial del conductor orienta dónde buscar
@@ -695,12 +702,12 @@ export function insights(
         sev: 'warning',
         area: 'Auditoría',
         title: `${r.v.plate}: el odómetro queda ${f1(Math.abs(r.gpsVsOdo as number))} km ${(r.gpsVsOdo as number) < 0 ? 'por debajo' : 'por encima'} del rango posible del GPS`,
-        detail: `Entre las mismas dos cargas: odómetro ${f1(r.odoKm as number)} km; el GPS permite entre ${f1(r.gpsWinMin as number)} y ${f1(r.gpsWinMax as number)} km (según a qué hora del día se cargó). ${(r.gpsWinMax as number) < 0.2 * (r.odoKm as number) ? 'El GPS casi no registró: revisar el equipo.' : 'Puede ser GPS sin señal, uso fuera de cobertura o una lectura mal cargada.'}`,
+        detail: `Entre las mismas dos cargas: odómetro ${f1(r.odoKm as number)} km; el GPS permite entre ${f1(r.gpsWinMin as number)} y ${f1(r.gpsWinMax as number)} km (según a qué hora del día se cargó). ${(r.gpsWinMax as number) < PRM.GPS_DEAD_RATIO * (r.odoKm as number) ? 'El GPS casi no registró: revisar el equipo.' : 'Puede ser GPS sin señal, uso fuera de cobertura o una lectura mal cargada.'}`,
       })
     );
   // Lecturas descartadas por chofer
   drv
-    .filter((x) => x.rejected >= 2)
+    .filter((x) => x.rejected >= PRM.REJECTED_MIN_PER_DRIVER)
     .forEach((x) =>
       out.push({
         sev: 'warning',
@@ -711,7 +718,7 @@ export function insights(
     );
   // Cargas en vehículo no asignado
   drv
-    .filter((x) => x.notAssigned >= 3)
+    .filter((x) => x.notAssigned >= PRM.NOT_ASSIGNED_MIN_PER_DRIVER)
     .forEach((x) =>
       out.push({
         sev: 'info',
@@ -722,7 +729,7 @@ export function insights(
     );
   // Baja utilización
   cur
-    .filter((r) => !extras.partial && r.opKm !== null && r.opKm < 300 && (r.hasGps || r.fills > 0))
+    .filter((r) => !extras.partial && r.opKm !== null && r.opKm < PRM.LOW_USE_KM && (r.hasGps || r.fills > 0))
     .forEach((r) =>
       out.push({
         sev: 'info',

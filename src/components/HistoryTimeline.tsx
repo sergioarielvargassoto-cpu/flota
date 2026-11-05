@@ -8,11 +8,13 @@ const SRC: Record<string, { label: string; color: string }> = {
   registro: { label: '🧾 Km de un registro', color: '#6a1b9a' },
 };
 /** changed_by se guarda como "origen:usuario"; los registros viejos (solo email) se muestran como manuales. */
-function parseSource(by: string) {
+function parseSource(by0: string) {
+  const by = by0.replace(/\s*\[lectura:\d{4}-\d{2}-\d{2}\]/, '');
   const i = by.indexOf(':');
   const k = i > 0 ? by.slice(0, i) : '';
   return SRC[k] ? { ...SRC[k], who: by.slice(i + 1) } : { ...SRC.manual, who: by };
 }
+const readingTag = (by: string) => by.match(/\[lectura:(\d{4})-(\d{2})-(\d{2})\]/)?.slice(1).reverse().join('/') ?? null;
 
 export function KmTimeline({ history }: { history: KmHistory[] }) {
   if (!history.length) return null;
@@ -45,6 +47,9 @@ export function KmTimeline({ history }: { history: KmHistory[] }) {
                   return (
                     <span style={{ fontSize: '12px' }}>
                       <b style={{ color: src.color }}>{src.label}</b> <span style={{ color: '#666' }}>· {src.who}</span>
+                      {readingTag(entry.changed_by) && (
+                        <b style={{ marginLeft: 6 }}>🗓 lectura del {readingTag(entry.changed_by)}</b>
+                      )}
                     </span>
                   );
                 })()}

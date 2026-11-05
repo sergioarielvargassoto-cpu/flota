@@ -2,6 +2,8 @@
  * Auditoría de odómetros: el GPS (km reportados de Gestya) controla lo que se declara en las estaciones.
  * Entre dos lecturas del tablero, la diferencia debe coincidir con los km que registró el GPS en ese lapso.
  */
+import { RANGE_TOL_ABS_KM, RANGE_TOL_PCT } from './params';
+
 export type TripLite = { vehicle_id: string; date: string; km_calc: number | string };
 
 /** Km de GPS en el intervalo (desde, hasta], ambos 'AAAA-MM-DD'. */
@@ -55,7 +57,7 @@ export function gpsRange(trips: TripLite[], vid: string, from: string, to: strin
   return { min, max };
 }
 /** Margen sobre el rango: error del GPS y redondeo del tablero. */
-export const rangeTol = (max: number) => Math.max(50, max * 0.03);
+export const rangeTol = (max: number) => Math.max(RANGE_TOL_ABS_KM, max * RANGE_TOL_PCT);
 /** Distancia a la que el odómetro queda FUERA del rango de GPS: 0 = dentro; negativo = marcó menos que el mínimo; positivo = más que el máximo. */
 export function outsideRange(delta: number, r: { min: number; max: number }): number {
   const tol = rangeTol(r.max);

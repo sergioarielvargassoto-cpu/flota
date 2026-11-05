@@ -11,6 +11,9 @@ import type { Fuel, KmHistory, Maint, Repair } from './types';
 export type Reading = { date: string; km: number; src: 'estación' | 'manual' | 'mantenimiento' | 'reparación' };
 
 const localDate = (iso: string) => new Date(iso).toLocaleDateString('en-CA');
+/** Fecha real de la lectura de un cambio de km manual: la indicada en "[lectura:AAAA-MM-DD]" o, si no hay, el día en que se cargó. */
+export const readingDateOf = (h: { changed_by: string; recorded_at: string }): string =>
+  h.changed_by.match(/\[lectura:(\d{4}-\d{2}-\d{2})\]/)?.[1] ?? localDate(h.recorded_at);
 const isFuelProduct = (p: string | null | undefined) => !/azul|adblue/i.test(p ?? '');
 
 export function readingsOf(
@@ -28,7 +31,7 @@ export function readingsOf(
     // gps: calculado. combustible: ya cuenta como carga de estación. registro: viene de un mantenimiento/reparación/etc.,
     // que ya se lee con su fecha REAL (la del historial es la fecha en que se cargó, no la de la lectura).
     if (src === 'gps' || src === 'combustible' || src === 'registro') continue;
-    out.push({ date: localDate(h.recorded_at), km: h.km, src: 'manual' });
+    out.push({ date: readingDateOf(h), km: h.km, src: 'manual' });
   }
   for (const m of d.maintenance)
     if (m.vehicle_id === vehicleId && m.km !== null && m.km !== undefined) out.push({ date: m.date, km: m.km, src: 'mantenimiento' });

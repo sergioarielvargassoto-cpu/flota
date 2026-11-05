@@ -5,6 +5,8 @@ import { useData } from '@/lib/data';
 import { fd, isFuel, num } from '@/lib/util';
 import { Badge } from '@/components/Badge';
 import { gpsRange, outsideRange } from '@/lib/kmAudit';
+import { readingDateOf } from '@/lib/kmAnchor';
+import { PARAM_DOCS, STALE_READING_DAYS } from '@/lib/params';
 import { fuelPairs, monthLabel, monthRange, vehicleMonth, availableMonths, type Data } from '@/lib/fleetStats';
 
 type Reading = { date: string; km: number; src: string; who: string; rejected?: boolean };
@@ -56,7 +58,7 @@ export default function AuditoriaKm() {
         const i = h.changed_by.indexOf(':');
         const src = i > 0 ? h.changed_by.slice(0, i) : 'manual';
         if (src === 'gps' || src === 'combustible' || src === 'registro') return; // combustible ya está en fuel_loads; registro = mantenimiento/reparación con su fecha real
-        rs.push({ date: localDate(h.recorded_at), km: h.km, src, who: i > 0 ? h.changed_by.slice(i + 1) : h.changed_by });
+        rs.push({ date: readingDateOf(h), km: h.km, src, who: i > 0 ? h.changed_by.slice(i + 1) : h.changed_by });
       });
       // Mantenimientos y reparaciones: el km se anota en el taller leyendo el tablero (puede venir redondeado)
       maintenance.forEach((m) => {
@@ -113,7 +115,7 @@ export default function AuditoriaKm() {
       }
       const lastR = rs.length ? rs[rs.length - 1] : null;
       const days = lastR ? daysBetween(lastR.date, today) : null;
-      if (days === null || days > 35) stale.push({ plate: v.plate, last: lastR, days });
+      if (days === null || days > STALE_READING_DAYS) stale.push({ plate: v.plate, last: lastR, days });
     }
 
     const services = vehicles
@@ -375,7 +377,7 @@ export default function AuditoriaKm() {
         (tipo “Service”); recién ahí se da por realizado.
       </p>
 
-      <h3>📝 Vehículos sin lectura de tablero reciente (más de 35 días)</h3>
+      <h3>📝 Vehículos sin lectura de tablero reciente (más de {STALE_READING_DAYS} días)</h3>
       {stale.length ? (
         <div className="tw">
           <table>
@@ -404,7 +406,40 @@ export default function AuditoriaKm() {
       ) : (
         <div className="empty">✔ Todos los vehículos tienen una lectura reciente.</div>
       )}
-      <p className="muted">Anotar el km real en Vehículos → “Actualizar km”. Queda registrado como carga manual.</p>
+      <p className="muted">
+        Anotar el km real en Vehículos → “Actualizar km”, indicando <b>la fecha en que se leyó el tablero</b>. Queda registrado como carga manual con esa fecha.
+      </p>
+
+      <details style={{ marginTop: 24 }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>📐 Parámetros y criterios de esta auditoría (y por qué)</summary>
+        <p className="muted">
+          Provisorios: salen del análisis de septiembre (un solo mes de combustible). Se recalibran con 3 o más meses de datos (ver PLAN_REANALISIS_DATOS.md).
+        </p>
+        <div className="tw">
+          <table>
+            <thead>
+              <tr>
+                <th>Criterio</th>
+                <th>Valor</th>
+                <th>Por qué</th>
+                <th>Cuándo revisarlo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PARAM_DOCS.map((p) => (
+                <tr key={p.name}>
+                  <td>
+                    <b>{p.name}</b>
+                  </td>
+                  <td>{p.value}</td>
+                  <td>{p.why}</td>
+                  <td className="muted">{p.review}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </>
   );
 }

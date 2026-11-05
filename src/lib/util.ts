@@ -1,3 +1,4 @@
+import { OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY } from './params';
 /** Patente / texto normalizado: mayúsculas, sin espacios ni símbolos. */
 export const nrm = (s: unknown): string =>
   String(s ?? '')
@@ -53,8 +54,8 @@ export function okOdo(km: number | null, kmDate: string | null, fecha: string, o
   if (!isFinite(odo) || odo <= 0 || km === null || !kmDate) return false;
   const dd = Math.round((+new Date(fecha + 'T00:00:00') - +new Date(kmDate + 'T00:00:00')) / 864e5);
   if (dd < 0) return false;
-  const a = Math.max(1, dd) * 700 + 1000;
-  return odo >= km - 300 && odo <= km + a;
+  const a = Math.max(1, dd) * OKODO_KM_PER_DAY + OKODO_BASE_KM;
+  return odo >= km - OKODO_BACK_KM && odo <= km + a;
 }
 
 export const isFuel = (product: string | null | undefined): boolean => !/azul|adblue/i.test(product ?? '');

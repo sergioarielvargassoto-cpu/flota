@@ -4,6 +4,7 @@ import { sb } from './supabase';
 import { recordKmChange } from './history';
 import { gpsRange, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
 import { lastReading } from './kmAnchor';
+import { DEFAULT_TANK_L, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
 import { DOC_VEHICLE_DEFAULT, isFuel, nrm, okOdo, pDate, pNum, todayStr } from './util';
@@ -421,7 +422,7 @@ export function useImporters() {
       let c = capCache.get(vid);
       if (c === undefined) {
         c = Math.max(
-          40,
+          DEFAULT_TANK_L,
           ...fuel_loads.filter((f) => f.vehicle_id === vid && isFuel(f.product)).map((f) => Number(f.liters) || 0),
           ...L.filter((x) => byPlate.get(x.pt)?.id === vid && isFuel(x.prod)).map((x) => x.lit || 0)
         );
@@ -444,11 +445,11 @@ export function useImporters() {
           const rg = gpsRange(trips, vid, fecha, a.date);
           return outsideRange(a.km - odo, rg) === 0;
         }
-        return odo > 0 && odo <= a.km + 300 && odo >= a.km - (dd * 700 + 1000);
+        return odo > 0 && odo <= a.km + OKODO_BACK_KM && odo >= a.km - (dd * OKODO_KM_PER_DAY + OKODO_BASE_KM);
       }
       // Regla física: con el combustible disponible (esta carga + lo que cabe en el tanque) no se pueden recorrer más de
       // (litros + capacidad) / 3,5 L/100 km. Descarta tipeos con saltos imposibles (p. ej. 2.400 km con 20 L).
-      if (odo - a.km > (litros + capOf(vid)) / 0.035) return false;
+      if (odo - a.km > (litros + capOf(vid)) / (PHYSICAL_MIN_L_PER_100 / 100)) return false;
       if (!lg || lg < fecha) return okOdo(a.km, a.date, fecha, odo); // GPS aún sin cargar: se audita al subir Gestya
       // Rango posible de GPS entre la lectura de referencia y esta (la carga no tiene hora: ver gpsRange)
       const rg = gpsRange(trips, vid, a.date, fecha);

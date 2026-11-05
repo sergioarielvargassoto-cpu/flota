@@ -4,16 +4,22 @@ import { sb } from './supabase';
 /** Origen de un cambio de km: quién/qué lo generó. Se guarda como prefijo de changed_by ("origen:usuario"). */
 export type KmSource = 'manual' | 'gps' | 'combustible' | 'registro';
 
+/**
+ * `readingDate` (AAAA-MM-DD) = día en que se LEYÓ el km en el tablero, si no es hoy. Se guarda en changed_by como
+ * "[lectura:AAAA-MM-DD]" porque `recorded_at` es el momento en que se cargó. Sin esa fecha, una lectura de hace unos días
+ * se mezclaba con las demás como si fuera de hoy.
+ */
 export async function recordKmChange(
   vehicleId: string,
   km: number,
   kmPrevious: number | null = null,
-  source: KmSource = 'manual'
+  source: KmSource = 'manual',
+  readingDate?: string
 ) {
   const {
     data: { user },
   } = await sb().auth.getUser();
-  const changedBy = `${source}:${user?.email || 'sistema'}`;
+  const changedBy = `${source}:${user?.email || 'sistema'}${readingDate ? ` [lectura:${readingDate}]` : ''}`;
 
   const { error } = await sb().from('km_history').insert({
     vehicle_id: vehicleId,
