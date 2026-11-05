@@ -9,6 +9,12 @@ Hoy hay poca información; con más datos el control será mucho más preciso. L
 cada lectura se contrasta con hasta **3 anteriores y 3 posteriores** de cualquier fuente (estación, km a mano, mantenimiento, reparación) y con el GPS
 (`src/lib/kmTrajectory.ts`). Con más lecturas por vehículo se puede subir `NEIGHBORS_EACH_SIDE`, afinar el margen y calcular un factor de escala propio por vehículo.
 
+## Regla: no rescatar lecturas descartadas solo porque encajen con el GPS (4/11/2026)
+El dueño advirtió que una lectura de estación descartada puede ser de OTRO vehículo (por ejemplo OUG184, 04/09, 309.194 km, García Ramón, remito 3561-00082476:
+encaja con el GPS de OUG184 a 15 km, pero eso no prueba que la carga sea suya; con YPF en Ruta cada tarjeta está asociada a un vehículo, así que sería poco probable, a confirmar).
+Por eso NO hay rescate automático de lecturas descartadas: solo se revalida si el responsable confirma con el comprobante y la tarjeta usada. El importador avisa cuando la tarjeta de una carga
+no es la registrada para el vehículo (fuel_loads no guarda la tarjeta por carga; mejora posible con una columna nueva).
+
 ## Qué rehacer, con más datos
 1. **Factor de escala odómetro/GPS por vehículo** (regresión por el origen, con intervalo de confianza). Exigir ≥6 tramos limpios por unidad.
    En septiembre: AG281ZJ 0,935 · AH530QG 1,086 · AE615LU 1,024 · AE547NW 0,992 · AF630PC 1,000 · AE149OR 0,953.

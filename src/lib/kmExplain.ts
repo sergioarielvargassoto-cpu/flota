@@ -137,6 +137,7 @@ export function explainCase(c: CaseInput): Explanation {
         `Las anotaciones de taller de esos días (${all.map((x) => `${f(x.km)} el ${fd(x.date)}`).join(' → ')}) son todas redondeadas a 500 y NO están en orden creciente: el odómetro no puede bajar, así que son valores aproximados y no lecturas exactas del tablero. La diferencia real es chica (hasta ±500 km).`
       );
   }
+  if (c.src === 'estación') causes.push('Verificar también que la carga sea realmente de este vehículo: con YPF en Ruta cada tarjeta está asociada a un vehículo, así que es poco probable, pero puede haberse usado la tarjeta de otro o tipeado mal la patente.');
   if (!causes.length) causes.push('No hay un patrón evidente en el número ni en la fecha. Hay que revisar el comprobante original (factura, remito o fotografía del tablero).');
 
   // ---- Qué hacer ----

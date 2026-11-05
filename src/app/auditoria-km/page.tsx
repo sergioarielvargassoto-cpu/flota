@@ -378,12 +378,12 @@ export default function AuditoriaKm() {
         Cada anomalía que detecta el sistema trae su explicación automática: qué vio, qué pudo haber pasado, qué hacer y qué efecto tiene. Funciona para cualquier caso
         nuevo del mismo tipo (el mes se elige más abajo, en “Auditoría entre cargas”). Las causas son hipótesis a confirmar con el comprobante original.
       </p>
-      {[
-        { title: 'Lecturas de estación inválidas', items: monthCases.invalid.map((x, i) => ({ k: 'i' + i, head: `${x.r.plate} · ${fd(x.r.load.date)} · declararon ${num(x.r.declared)} km`, e: x.e })) },
+      {([
+        { title: 'Lecturas de estación inválidas', items: monthCases.invalid.map((x, i) => ({ k: 'i' + i, head: `${x.r.plate} · ${fd(x.r.load.date)} · declararon ${num(x.r.declared)} km`, e: x.e, note: caseNoteFor(x.r.plate, x.r.load.date, x.r.declared) })) },
         { title: 'Tramos entre cargas que no cierran con el GPS (o con cargas el mismo día)', items: monthCases.pairs.map((x, i) => ({ k: 'p' + i, head: `${x.p.vehicle.plate} · ${fd(x.p.prev.date)} → ${fd(x.p.cur.date)} · odómetro ${num(x.p.dKm)} km`, e: x.e })) },
         { title: 'Consumo fuera de lo esperado', items: monthCases.cons.map((x, i) => ({ k: 'c' + i, head: `${x.w.v.plate} · ${(x.w.l100 as number).toLocaleString('es-AR', { maximumFractionDigits: 1 })} L/100 km (${(x.w.l100Dev as number) > 0 ? '+' : ''}${Math.round(x.w.l100Dev as number)} %)`, e: x.e })) },
         { title: 'GPS poco confiable', items: monthCases.gps.map((x, i) => ({ k: 'g' + i, head: `${x.v.plate}`, e: x.e })) },
-      ].map((sec) => (
+      ] as { title: string; items: { k: string; head: string; e: Explanation; note?: ReturnType<typeof caseNoteFor> }[] }[]).map((sec) => (
         <details key={sec.title} style={{ margin: '8px 0' }} open={sec.items.length > 0 && sec.items.length <= 3}>
           <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
             {sec.title} ({sec.items.length})
@@ -393,6 +393,11 @@ export default function AuditoriaKm() {
               {sec.items.map((it) => (
                 <details key={it.k} style={{ background: '#fff', border: '1px solid var(--b)', borderRadius: 8, padding: '8px 12px' }}>
                   <summary style={{ cursor: 'pointer' }}>{it.head}</summary>
+                  {it.note && (
+                    <div style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 10, margin: '8px 0 0', fontSize: 13 }}>
+                      <b>📝 Aclaración del {it.note.by.toLowerCase()} ({fd(it.note.on)}):</b> {it.note.note}
+                    </div>
+                  )}
                   <ExplainView e={it.e} />
                 </details>
               ))}

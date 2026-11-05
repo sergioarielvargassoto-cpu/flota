@@ -56,14 +56,15 @@ export function explainInvalidReading(p: {
     if (next.km < p.declared) causes.push(`La lectura válida siguiente (${f(next.km)} el ${fd(next.date)}) es MENOR: el odómetro no puede bajar, así que este valor no es posible.`);
     else if (next.km - p.declared > dd * 700 + 1000) causes.push(`Para llegar de ${f(p.declared)} a ${f(next.km)} (${fd(next.date)}) tendría que haber recorrido ${f(next.km - p.declared)} km en ${dd} día(s) (≈ ${f((next.km - p.declared) / dd)} km por día): imposible.`);
   }
-  const other = p.fleet.find((x) => x.plate !== p.plate && Math.abs(x.km - p.declared) <= 100 && Math.abs(days(x.date, p.date)) <= 3);
-  if (other) causes.push(`Coincide (±100 km) con el odómetro de ${other.plate} (${f(other.km)} km el ${fd(other.date)}): puede que se haya dicho el km de otro vehículo.`);
+  const other = p.fleet.find((x) => x.plate !== p.plate && Math.abs(x.km - p.declared) <= 300 && Math.abs(days(x.date, p.date)) <= 7);
+  if (other) causes.push(`Coincide (±300 km) con el odómetro de ${other.plate} (${f(other.km)} km el ${fd(other.date)}): puede que la carga sea de ese otro vehículo y se haya cargado con esta patente.`);
   if (!causes.length) causes.push('No hay un patrón evidente. Puede ser un error de tipeo del playero o un dato que no se informó bien.');
+  causes.push('Verificar también que la carga sea realmente de ESTE vehículo: con YPF en Ruta cada tarjeta está asociada a un vehículo, así que es poco probable, pero puede haberse usado la tarjeta de otro vehículo o tipeado mal la patente. Que el km encaje con el GPS de este vehículo NO prueba que la carga sea suya.');
   return {
     seen,
     causes,
     todo: [
-      'No hace falta corregir nada para que el sistema funcione: la carga se guarda (los litros y el importe cuentan) pero el km no se usa.',
+      'No hace falta corregir nada para que el sistema funcione: la carga se guarda (los litros y el importe cuentan) pero el km no se usa. Aunque el km encaje con el GPS, NO se lo da por válido hasta confirmar con el comprobante que la carga es de este vehículo.',
       'Si se conoce el km real (foto del tablero o remito), corregirlo en Combustible → Editar para que pase a ser una lectura válida.',
       'Si se repite con la misma estación o el mismo vehículo, hablar con el playero o el chofer: el Informe muestra cuántas lecturas inválidas tiene cada uno.',
     ],
