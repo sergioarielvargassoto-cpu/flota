@@ -8,7 +8,9 @@
  */
 import type { Fuel, KmHistory, Maint, Repair } from './types';
 
-export type Reading = { date: string; km: number; src: 'estación' | 'manual' | 'mantenimiento' | 'reparación' };
+export type Reading = { date: string; km: number; src: 'estación' | 'manual' | 'mantenimiento' | 'reparación'; at?: string };
+/** Desempate entre lecturas del MISMO día: lo cargado a mano manda sobre el taller, y el taller sobre la estación. */
+const RANK = { estación: 1, reparación: 2, mantenimiento: 2, manual: 3 } as const;
 
 const localDate = (iso: string) => new Date(iso).toLocaleDateString('en-CA');
 /** Fecha real de la lectura de un cambio de km manual: la indicada en "[lectura:AAAA-MM-DD]" o, si no hay, el día en que se cargó. */
@@ -31,13 +33,20 @@ export function readingsOf(
     // gps: calculado. combustible: ya cuenta como carga de estación. registro: viene de un mantenimiento/reparación/etc.,
     // que ya se lee con su fecha REAL (la del historial es la fecha en que se cargó, no la de la lectura).
     if (src === 'gps' || src === 'combustible' || src === 'registro') continue;
-    out.push({ date: readingDateOf(h), km: h.km, src: 'manual' });
+    out.push({ date: readingDateOf(h), km: h.km, src: 'manual', at: h.recorded_at });
   }
   for (const m of d.maintenance)
     if (m.vehicle_id === vehicleId && m.km !== null && m.km !== undefined) out.push({ date: m.date, km: m.km, src: 'mantenimiento' });
   for (const r of d.repairs)
     if (r.vehicle_id === vehicleId && r.km !== null && r.km !== undefined) out.push({ date: r.date, km: r.km, src: 'reparación' });
-  return out.sort((a, b) => a.date.localeCompare(b.date) || a.km - b.km);
+  // Mismo día: prioridad por origen; entre cargas manuales, la ÚLTIMA cargada (si no, la de mayor km)
+  return out.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      RANK[a.src] - RANK[b.src] ||
+      (a.at && b.at ? a.at.localeCompare(b.at) : 0) ||
+      a.km - b.km
+  );
 }
 
 /** ¿El GPS cubre desde la lectura? El primer día con GPS puede ser el mismo día de la lectura o el siguiente (continuidad). */
