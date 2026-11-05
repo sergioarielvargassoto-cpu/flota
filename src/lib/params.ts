@@ -21,8 +21,30 @@ export const GPS_RELIABLE_MAX = 1.3;
 export const PHYSICAL_MIN_L_PER_100 = 3.5;
 /** La regla física solo se aplica si la referencia es de hace hasta este número de días (con una referencia vieja pudo haber cargas que no están en los datos). */
 export const PHYSICAL_RULE_MAX_GAP_DAYS = 7;
-/** Una carga mayor a esto se considera un error de tipeo y NO se usa para estimar la capacidad del tanque. */
+/** Máximo para un vehículo cuyo modelo no está en TANK_CAPACITY: una carga mayor es error de tipeo y NO se usa para estimar el tanque. */
 export const MAX_PLAUSIBLE_LOAD_L = 300;
+
+/**
+ * Capacidad máxima del tanque por modelo (litros): ninguna carga puede superarla. Se toma la cifra MÁS ALTA razonable de fábrica
+ * (incluidos tanques opcionales), para no descartar cargas verdaderas. `ok` = confirmado en ficha oficial; si no, es estimación a verificar.
+ * Las cargas observadas en los datos de septiembre/octubre (máx. por vehículo) están todas por debajo de estos valores.
+ */
+export const TANK_CAPACITY: { re: RegExp; liters: number; ok: boolean; label: string }[] = [
+  { re: /kangoo/i, liters: 50, ok: true, label: 'Renault Kangoo (folleto Renault Argentina: 50 L)' },
+  { re: /sandero/i, liters: 50, ok: false, label: 'Renault Sandero (≈ 50 L, a verificar)' },
+  { re: /par[tn]{1,2}er/i, liters: 60, ok: false, label: 'Peugeot Partner (55–60 L según fuente)' },
+  { re: /berlingo/i, liters: 60, ok: false, label: 'Citroën Berlingo (≈ 60 L, a verificar)' },
+  { re: /transit/i, liters: 80, ok: false, label: 'Ford Transit 2.2 (≈ 80 L, una sola fuente)' },
+  { re: /sprinter/i, liters: 100, ok: false, label: 'Mercedes-Benz Sprinter (71 L / 93 L de fábrica; 100 L como tope)' },
+  { re: /atego/i, liters: 300, ok: false, label: 'Mercedes-Benz Atego (210 L en 1726; hasta 300 L en 1725; a verificar el 1721)' },
+  { re: /cargo/i, liters: 250, ok: false, label: 'Ford Cargo 1119 (sin dato oficial; tope estimado)' },
+  { re: /(^|\s)4\.?000|f-?4000/i, liters: 120, ok: false, label: 'Ford F-4000 (sin dato oficial; tope estimado)' },
+];
+/** Capacidad máxima de tanque (L) del vehículo según marca/modelo; si no se conoce, MAX_PLAUSIBLE_LOAD_L. */
+export function tankMaxL(v: { brand?: string | null; model?: string | null } | null | undefined): number {
+  const txt = `${v?.brand ?? ''} ${v?.model ?? ''}`;
+  return TANK_CAPACITY.find((t) => t.re.test(txt))?.liters ?? MAX_PLAUSIBLE_LOAD_L;
+}
 /** Capacidad de tanque supuesta si no se conoce (se usa la mayor carga vista si es mayor). */
 export const DEFAULT_TANK_L = 40;
 /** Margen de desvío de consumo aceptable por tipo de vehículo. */
@@ -131,14 +153,14 @@ export const PARAM_DOCS: ParamDoc[] = [
   {
     name: 'Regla física de plausibilidad',
     value: `km máximos = (litros + capacidad del tanque) ÷ ${PHYSICAL_MIN_L_PER_100} L/100 km · solo si la referencia es de hace ${PHYSICAL_RULE_MAX_GAP_DAYS} días o menos`,
-    why: `Con el combustible disponible no se puede recorrer más. Sobre 77 tramos rechazó 1 (AA726SG: 2.400 km con 20,7 L) y ningún falso positivo. Con una referencia más vieja que ${PHYSICAL_RULE_MAX_GAP_DAYS} días pudo haber cargas que no están en los datos: ahí la regla no se aplica y decide el GPS (si no, se rechazarían lecturas buenas tras un hueco de datos). Las cargas de más de ${MAX_PLAUSIBLE_LOAD_L} L se consideran error de tipeo y no cuentan para estimar el tanque.`,
+    why: `Con el combustible disponible no se puede recorrer más. Sobre 77 tramos rechazó 1 (AA726SG: 2.400 km con 20,7 L) y ningún falso positivo. Con una referencia más vieja que ${PHYSICAL_RULE_MAX_GAP_DAYS} días pudo haber cargas que no están en los datos: ahí la regla no se aplica y decide el GPS (si no, se rechazarían lecturas buenas tras un hueco de datos). Una carga mayor a la capacidad del tanque del modelo (ver "Capacidad de tanque") es error de tipeo y no cuenta para estimar el tanque.`,
     review: 'Cargar la capacidad real del tanque de cada vehículo; revisar el límite de días con más meses.',
   },
   {
-    name: 'Capacidad de tanque supuesta',
-    value: `mayor carga vista del vehículo (mínimo ${DEFAULT_TANK_L} L)`,
-    why: 'No hay dato de capacidad. Los Renault rinden 400–500 km por tanque (≈ 9–11 L/100 km, tanque ≈ 45–50 L).',
-    review: 'Reemplazar por la capacidad real en la ficha.',
+    name: 'Capacidad de tanque (máximo por carga)',
+    value: `mayor carga vista del vehículo (mínimo ${DEFAULT_TANK_L} L), sin superar el máximo de su modelo: ${TANK_CAPACITY.map((t) => `${t.label.split(' (')[0]} ${t.liters} L${t.ok ? '' : '*'}`).join(' · ')}; modelo no listado: ${MAX_PLAUSIBLE_LOAD_L} L`,
+    why: 'Una carga mayor a la capacidad del tanque es físicamente imposible (error de tipeo) y no debe usarse para estimar el tanque. El tope es el mayor valor razonable de fábrica de cada modelo, para no descartar cargas verdaderas. *Solo la Kangoo está confirmada con ficha oficial; el resto es estimación a verificar con la ficha o el manual del vehículo.',
+    review: 'Verificar los marcados con *; idealmente guardar la capacidad en la ficha de cada vehículo.',
   },
   {
     name: 'Banda de desvío de consumo',

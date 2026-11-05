@@ -8,7 +8,7 @@ import { recomputeVehicleKm } from './kmRecompute';
 import { confusablePairs, twinsOf } from './confusable';
 import { trajectoryOutliers, type TReading } from './kmTrajectory';
 import { validateReading, type Anchor } from './kmValidate';
-import { DEFAULT_TANK_L, MAX_PLAUSIBLE_LOAD_L, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
+import { DEFAULT_TANK_L, tankMaxL, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
 import { DOC_VEHICLE_DEFAULT, isFuel, nrm, okOdo, pDate, pNum, todayStr } from './util';
@@ -436,10 +436,11 @@ export function useImporters() {
     const capOf = (vid: string) => {
       let c = capCache.get(vid);
       if (c === undefined) {
+        const maxL = tankMaxL([...byPlate.values()].find((x) => x.id === vid));
         c = Math.max(
           DEFAULT_TANK_L,
-          ...fuel_loads.filter((f) => f.vehicle_id === vid && isFuel(f.product)).map((f) => Number(f.liters) || 0).filter((l) => l <= MAX_PLAUSIBLE_LOAD_L),
-          ...L.filter((x) => byPlate.get(x.pt)?.id === vid && isFuel(x.prod)).map((x) => x.lit || 0).filter((l) => l <= MAX_PLAUSIBLE_LOAD_L)
+          ...fuel_loads.filter((f) => f.vehicle_id === vid && isFuel(f.product)).map((f) => Number(f.liters) || 0).filter((l) => l <= maxL),
+          ...L.filter((x) => byPlate.get(x.pt)?.id === vid && isFuel(x.prod)).map((x) => x.lit || 0).filter((l) => l <= maxL)
         );
         capCache.set(vid, c);
       }

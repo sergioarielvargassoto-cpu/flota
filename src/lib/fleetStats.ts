@@ -180,7 +180,7 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
       if (S !== null && E !== null && E > S) odoCalKm = E - S;
     }
     const l100 = odoKm && winLiters ? (winLiters / odoKm) * 100 : null;
-    const maxLoad = Math.max(0, ...d.fuel_loads.filter((f) => f.vehicle_id === v.id && isFuelProduct(f.product)).map((f) => Number(f.liters) || 0).filter((l) => l <= PRM.MAX_PLAUSIBLE_LOAD_L));
+    const maxLoad = Math.max(0, ...d.fuel_loads.filter((f) => f.vehicle_id === v.id && isFuelProduct(f.product)).map((f) => Number(f.liters) || 0).filter((l) => l <= PRM.tankMaxL(v)));
     const tankCap = Math.max(maxLoad, PRM.DEFAULT_TANK_L);
     // Si el GPS casi no registró (equipo sin señal / apagado) frente al odómetro, se usa el odómetro
     const gpsDead = hasGps && gpsWinMax !== null && odoKm !== null && gpsWinMax < PRM.GPS_DEAD_RATIO * odoKm;
