@@ -14,6 +14,7 @@ guías de React de Vercel y guías de interfaz de Vercel (copia fija revisada, p
 |---|-----|---------|------|
 | 1 | **Apagar el registro de usuarios** | Cualquiera con la URL y la clave pública puede crear una cuenta y, con las políticas actuales, ver y editar TODOS los datos (choferes con DNI, combustible, etc.). | Supabase → Authentication → Sign In / Providers → "Allow new users to sign up" = OFF |
 | 2 | **Aplicar `supabase/migrations/0008_usuarios_autorizados.sql`** | Deja una sola política por tabla que exige estar en la lista de emails autorizados (hoy hay dos políticas abiertas por tabla: `solo_logueados` y `*_auth_all`). | Supabase → SQL Editor → pegar y ejecutar. Es "todo o nada". Autoriza `sergioarielvargassoto@gmail.com`; para sumar gente: `insert into allowed_users(email) values ('...')`. |
+| 2b | **Aplicar `supabase/migrations/0009_proteger_historial_vehiculos.sql`** | Impide borrar vehículos con historial aunque se intente desde el panel de Supabase. | SQL Editor → pegar y ejecutar |
 | 3 | **Mover o cifrar `backups/`** | Está dentro de OneDrive (se sincroniza a la nube) y contiene DNI, multas, etc. Está fuera de git, pero no cifrado. | El script guarda en `backups/` relativo a donde se ejecuta: moverlo periódicamente a una carpeta fuera de OneDrive (o cifrarlo), o ejecutarlo desde una carpeta no sincronizada. |
 | 4 | Cargar **km del último service** de 14 de 21 vehículos | Sin ese dato no existe control de service para esos vehículos. | Vehículos → Editar |
 | 5 | Cargar **fecha de vencimiento** en 68 de 147 documentos | Sin fecha no hay alerta. Hoy hay 1 vencido (SENASA AG538DX, 12/06/2025). | Vencimientos |
@@ -49,6 +50,14 @@ guías de React de Vercel y guías de interfaz de Vercel (copia fija revisada, p
 - Foco visible con teclado, menú con scroll horizontal en celular, ventanas con Escape y rol de diálogo, error de importación visible,
   mensaje de carga sin la pista técnica de SQL, estado vacío con enlaces, soporte de "reducir movimiento".
 
+## 2b. Política de bajas de vehículos (implementada)
+- **Un vehículo con historial nunca se elimina:** se da de baja (estado "Baja", con fecha y motivo) y conserva documentos, mantenimientos, reparaciones, combustible,
+  recorridos, historial de km, infracciones y **archivos adjuntos**. Antes, "Eliminar" borraba en cascada y además borraba los adjuntos del almacenamiento.
+- El botón "Eliminar" solo queda disponible si el vehículo no tiene ningún registro (creado por error).
+- **📄 Exportar legajo (Excel):** datos, historial de km, documentos, mantenimientos, reparaciones, combustible, recorridos GPS, reportes, infracciones y lista de archivos adjuntos.
+- Listado de Vehículos oculta las bajas; "Ver archivo de bajas" las muestra. Los vehículos dados de baja siguen contando en las estadísticas de los meses en que tuvieron actividad.
+- `supabase/migrations/0009_proteger_historial_vehiculos.sql` (NO aplicada): disparador que impide borrar, a nivel base de datos, cualquier vehículo con registros asociados.
+
 ## 3. Verificado y en buen estado
 - Sin datos visibles para visitantes sin sesión (las 16 tablas devuelven 0 filas con la clave pública).
 - Bucket de adjuntos privado, con límite de 10 MB, URLs firmadas de 120 s.
@@ -61,8 +70,6 @@ guías de React de Vercel y guías de interfaz de Vercel (copia fija revisada, p
 ## 4. Recomendado a mediano plazo (no urgente)
 - **Esquema reproducible:** las tablas `infractions`, `fines` (y la columna `attachments.infraction_id`) existen en la base pero **no en ninguna migración**; un entorno nuevo
   (restauración) fallaría. Generar el esquema real (`supabase db dump --schema public`) y versionarlo.
-- Elegir una política de borrado: `0006` puso `ON DELETE RESTRICT` en algunas tablas y `CASCADE` en otras. Lo recomendable es no borrar vehículos con histórico
-  (usar estado "Baja"). Los vehículos en "Baja" desaparecen de los meses pasados del Informe.
 - Índices: faltan en FKs (`vehicles.driver_id`, `*.workshop_id`, `attachments.*_id`) y sobran algunos duplicados (0006). Agregar `CHECK` en columnas numéricas (litros > 0, costos ≥ 0).
 - Cabeceras de seguridad HTTP (CSP, X-Frame-Options, etc.) en `next.config`; tipos MIME permitidos también en el bucket (incluido en 0008).
 - Escala: hoy se cargan las 15 tablas completas al abrir y cada edición recarga la tabla entera. Aguanta años a este volumen; cuando `trips` pase de unos 10.000 registros,

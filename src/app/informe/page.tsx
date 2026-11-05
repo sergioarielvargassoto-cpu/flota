@@ -608,7 +608,7 @@ export default function Informe() {
                       <Link href={`/vehiculos/${r.v.id}`}>
                         <b>{r.v.plate}</b>
                       </Link>{' '}
-                      <span className="muted">{r.v.type}</span>
+                      <span className="muted">{r.v.type}{r.v.status === 'Baja' ? ' · de baja' : ''}</span>
                     </td>
                     <td>{r.prov}</td>
                     <td>{r.driverName}</td>

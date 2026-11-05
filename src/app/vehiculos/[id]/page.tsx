@@ -5,7 +5,8 @@ import { useData } from '@/lib/data';
 import { fd, guard, money, num, todayStr } from '@/lib/util';
 import { DocsTable, MaintTable, RepairsTable } from '@/components/Tables';
 import { MaintForm, RepairForm, VehicleForm, KmUpdateForm } from '@/components/forms';
-import { removeStoredFiles } from '@/components/Attachments';
+import { FormModal } from '@/components/FormModal';
+import { bajaLine, exportLegajo, parseBaja, vehicleHistory, withBaja, withoutBaja } from '@/lib/archive';
 import { useModal } from '@/components/useModal';
 import { KmTimeline } from '@/components/HistoryTimeline';
 
@@ -20,6 +21,12 @@ export default function VehiculoDetalle() {
     documents,
     attachments,
     km_history,
+    km_reports,
+    fuel_loads,
+    trips,
+    infractions,
+    fines,
+    workshops,
     settings,
     update,
     remove,
@@ -39,6 +46,8 @@ export default function VehiculoDetalle() {
   const d = drivers.find((x) => x.id === v.driver_id);
   const rs = repairs.filter((r) => r.vehicle_id === v.id);
   const ms = maintenance.filter((m) => m.vehicle_id === v.id);
+  const hist = vehicleHistory(v.id, { drivers, documents, repairs, maintenance, fuel_loads, trips, km_history, km_reports, infractions, fines, attachments, workshops });
+  const baja = parseBaja(v.notes);
   const total = rs.reduce((s, r) => s + (r.cost ?? 0), 0) + ms.reduce((s, m) => s + (m.cost ?? 0), 0);
 
   return (
@@ -62,35 +71,79 @@ export default function VehiculoDetalle() {
           Editar
         </button>
         <button
-          className="b3"
-          onClick={() => {
-            if (
-              !confirm(
-                `¿Eliminar ${v.plate} y todos sus vencimientos, reparaciones, mantenimientos, cargas y recorridos?`
-              )
-            )
-              return;
-            guard(async () => {
-              const docIds = new Set(documents.filter((x) => x.vehicle_id === v.id).map((x) => x.id));
-              const repIds = new Set(rs.map((x) => x.id));
-              const manIds = new Set(ms.map((x) => x.id));
-              await removeStoredFiles(
-                attachments.filter(
-                  (a) =>
-                    (a.document_id && docIds.has(a.document_id)) ||
-                    (a.repair_id && repIds.has(a.repair_id)) ||
-                    (a.maintenance_id && manIds.has(a.maintenance_id))
-                )
-              );
-              await remove('vehicles', v.id);
-              await reload();
-              router.push('/vehiculos');
-            });
-          }}
+          className="b2"
+          onClick={() =>
+            exportLegajo(v, { drivers, documents, repairs, maintenance, fuel_loads, trips, km_history, km_reports, infractions, fines, attachments, workshops })
+          }
         >
-          Eliminar
+          📄 Exportar legajo (Excel)
         </button>
+        {v.status === 'Baja' ? (
+          <button
+            className="b2"
+            onClick={() =>
+              guard(async () => {
+                if (!confirm(`¿Reactivar ${v.plate}? Volverá a aparecer en el listado y en los controles.`)) return;
+                await update('vehicles', v.id, { status: 'Activo', notes: withoutBaja(v.notes, todayStr()) });
+              })
+            }
+          >
+            Reactivar
+          </button>
+        ) : (
+          <button
+            className="b3"
+            onClick={() =>
+              open((c) => (
+                <FormModal
+                  title={`Dar de baja ${v.plate}`}
+                  onClose={c}
+                  initial={{ date: todayStr(), reason: 'Venta' }}
+                  fields={[
+                    { k: 'date', l: 'Fecha de baja', t: 'date', req: true, half: true },
+                    { k: 'reason', l: 'Motivo', t: 'combo', req: true, half: true, options: ['Venta', 'Siniestro / destrucción total', 'Robo', 'Fin de contrato / devolución', 'Otro'] },
+                    { k: 'detail', l: 'Detalle (comprador, n° de denuncia, etc.)', t: 'textarea' },
+                  ]}
+                  onSave={async (vals) => {
+                    await update('vehicles', v.id, {
+                      status: 'Baja',
+                      notes: withBaja(v.notes, bajaLine(String(vals.date), String(vals.reason), String(vals.detail ?? ''))),
+                    });
+                  }}
+                />
+              ))
+            }
+          >
+            Dar de baja
+          </button>
+        )}
+        {hist.total === 0 && (
+          <button
+            className="b3"
+            title="Solo disponible si el vehículo no tiene ningún registro (por ejemplo, se creó por error)"
+            onClick={() => {
+              if (!confirm(`¿Eliminar definitivamente ${v.plate}? No tiene ningún registro asociado.`)) return;
+              guard(async () => {
+                await remove('vehicles', v.id);
+                await reload();
+                router.push('/vehiculos');
+              });
+            }}
+          >
+            Eliminar (creado por error)
+          </button>
+        )}
       </div>
+      {v.status === 'Baja' && (
+        <div role="status" style={{ background: '#f4f3ef', border: '1px solid #d9d6cc', borderRadius: 8, padding: 12, margin: '0 0 12px', fontSize: 14 }}>
+          <b>🗄 Vehículo dado de baja{baja ? ` el ${fd(baja.date)}` : ''}.</b> {baja?.text}
+          <br />
+          <span className="muted">
+            Su historial completo (documentos, mantenimientos, reparaciones, combustible, recorridos, multas y archivos adjuntos) se conserva para
+            estadísticas y respaldo legal. Podés bajarlo con “Exportar legajo”.
+          </span>
+        </div>
+      )}
       <div className="info">
         <div>
           <span>Tipo</span>

@@ -12,15 +12,30 @@ export default function Vehiculos() {
   const { vehicles, drivers, documents, settings } = useData();
   const { el, open } = useModal();
   const [q, setQ] = useState('');
-  const l = vehicles.filter(
+  const [showBaja, setShowBaja] = useState(false);
+  const bajas = vehicles.filter((v) => v.status === 'Baja').length;
+  const l = vehicles
+    .filter((v) => showBaja || v.status !== 'Baja')
+    .filter(
     (v) => !q || `${v.plate}${v.brand}${v.model}${v.type}`.toLowerCase().includes(q.toLowerCase())
   );
   return (
     <>
       <div className="bar">
-        <h2 style={{ margin: 0 }}>Vehículos ({vehicles.length})</h2>
+        <h2 style={{ margin: 0 }}>Vehículos ({vehicles.length - bajas})</h2>
         <span className="sp" />
-        <input placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
+        {bajas > 0 && (
+          <label style={{ fontSize: 13 }}>
+            <input type="checkbox" checked={showBaja} onChange={(e) => setShowBaja(e.target.checked)} /> Ver archivo de bajas ({bajas})
+          </label>
+        )}
+        <input
+          type="search"
+          aria-label="Buscar vehículo"
+          placeholder="Patente, marca o modelo…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
         <button className="b1" onClick={() => open((c) => <VehicleForm onClose={c} />)}>
           + Vehículo
         </button>

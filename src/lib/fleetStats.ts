@@ -127,7 +127,7 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
   const hasGpsAny = new Set(d.trips.map((t) => t.vehicle_id));
   const rows: VehicleMonth[] = [];
   for (const v of d.vehicles) {
-    if (v.status === 'Baja' || v.exclude_from_reports) continue;
+    if (v.exclude_from_reports) continue;
     const fl = d.fuel_loads.filter((f) => f.vehicle_id === v.id && f.date >= from && f.date < to && isFuelProduct(f.product));
     const tr = d.trips.filter((t) => t.vehicle_id === v.id && t.date >= from && t.date < to);
     const hasGps = hasGpsAny.has(v.id);
@@ -175,6 +175,8 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
     // Gasto = combustible + AdBlue del mes (los litros y la cantidad de cargas cuentan solo combustible)
     const fuelCost = sum(d.fuel_loads.filter((f) => f.vehicle_id === v.id && f.date >= from && f.date < to).map((f) => Number(f.amount) || 0));
     const total = fuelCost + maintCost + repairCost;
+    // Un vehículo dado de baja sigue contando en los meses en que tuvo actividad (estadística histórica); si no tuvo, no aparece
+    if (v.status === 'Baja' && !fl.length && !tr.length && maintCost === 0 && repairCost === 0) continue;
     rows.push({
       v,
       kmSource,
@@ -576,6 +578,7 @@ export function insights(
   prevTot: FleetTotals,
   extras: { servicesOverdue: number; docsOverdue: number; finesLoaded: number; key: string; partial?: boolean }
 ): Insight[] {
+  cur = cur.filter((r) => r.v.status !== 'Baja');
   const out: Insight[] = [];
   const pc = (a: number | null, b: number | null) => (a !== null && b ? ((a - b) / b) * 100 : null);
   const f1 = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 1 });
