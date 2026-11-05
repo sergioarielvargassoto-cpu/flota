@@ -11,6 +11,7 @@ import { gpsReliability } from '@/lib/kmAudit';
 import { explainCase, type Explanation } from '@/lib/kmExplain';
 import { explainConsumption, explainGps, explainInvalidReading, explainPair } from '@/lib/kmExplainCases';
 import { caseNoteFor } from '@/lib/kmCases';
+import { confusablePairs, crossFits } from '@/lib/confusable';
 import { PARAM_DOCS, STALE_READING_DAYS, UNCOVERED_GPS_KM_PER_DAY } from '@/lib/params';
 import { fuelPairs, invalidReadings, monthLabel, monthRange, vehicleMonth, availableMonths, type Data } from '@/lib/fleetStats';
 
@@ -98,6 +99,22 @@ export default function AuditoriaKm() {
     }
     return out.sort((a, b) => b.date.localeCompare(a.date));
   }, [vehicles, trips, fuel_loads, km_history, maintenance, repairs, settings]);
+  // Pares de vehículos que se pueden confundir y datos de uno que también encajan con el otro
+  const twins = useMemo(() => {
+    const pairs = confusablePairs(vehicles);
+    const d = { vehicles, fuel_loads, km_history, maintenance, repairs, trips };
+    return pairs.map((p) => {
+      const A = vehicles.find((v) => v.plate === p.a);
+      const B = vehicles.find((v) => v.plate === p.b);
+      return {
+        p,
+        A,
+        B,
+        aInB: A && B ? crossFits(A, B, d) : [],
+        bInA: A && B ? crossFits(B, A, d) : [],
+      };
+    });
+  }, [vehicles, fuel_loads, km_history, maintenance, repairs, trips]);
   const fuelMonths = useMemo(
     () => [...new Set(fuel_loads.map((f) => f.date.slice(0, 7)))].sort().reverse(),
     [fuel_loads]
@@ -282,6 +299,56 @@ export default function AuditoriaKm() {
         únicamente cuando se carga en su sección con el vehículo correspondiente. Si el km real supera el del service y
         no hay registro, queda <b>vencido</b> hasta que se verifique si se hizo y se cargue.
       </div>
+
+      {twins.length > 0 && (
+        <>
+          <h3>⚠ Vehículos que no hay que mezclar</h3>
+          <p className="muted">
+            Pares de vehículos fáciles de confundir al cargar datos (patentes parecidas, o del mismo estilo y con km parecidos). Si una carga, un service o una
+            reparación se carga en el vehículo equivocado, los km y los consumos de los dos quedan mal. Con YPF en Ruta cada tarjeta está asociada a un vehículo,
+            por lo que es poco probable, pero conviene verificar la patente antes de guardar.
+          </p>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {twins.map((t) => (
+              <div key={t.p.a + t.p.b} style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 10, padding: 12, fontSize: 13 }}>
+                <b>
+                  {t.p.a} ↔ {t.p.b}
+                  {t.p.byOwner ? ' · indicado por el responsable' : ''}
+                </b>
+                <ul style={{ margin: '4px 0 0 18px' }}>
+                  {t.p.reasons.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                  {t.A && t.B && (
+                    <li>
+                      {t.A.plate}: {t.A.brand} {t.A.model}, {num(t.A.km)} km, tarjeta …{t.A.fuel_card ?? '—'} · {t.B.plate}: {t.B.brand} {t.B.model}, {num(t.B.km)} km, tarjeta …{t.B.fuel_card ?? '—'}
+                    </li>
+                  )}
+                </ul>
+                <div style={{ marginTop: 6 }}>
+                  <b>¿Hay datos cargados a uno que también encajan con el otro?</b>
+                  {t.aInB.length + t.bInA.length === 0 ? (
+                    <div>✔ No: ningún dato de uno encaja con la trayectoria del otro.</div>
+                  ) : (
+                    <ul style={{ margin: '4px 0 0 18px' }}>
+                      {t.aInB.map((x, i) => (
+                        <li key={'a' + i}>
+                          Cargado a {t.A?.plate}: {x.what}, {num(x.km)} km el {fd(x.date)}{x.valid ? '' : ' (hoy descartado)'} → también encaja con {t.B?.plate}. No se puede asegurar de cuál es.
+                        </li>
+                      ))}
+                      {t.bInA.map((x, i) => (
+                        <li key={'b' + i}>
+                          Cargado a {t.B?.plate}: {x.what}, {num(x.km)} km el {fd(x.date)}{x.valid ? '' : ' (hoy descartado)'} → también encaja con {t.A?.plate}. No se puede asegurar de cuál es.
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <h3>🧭 Lecturas que no encajan con las demás del vehículo</h3>
       <p className="muted">

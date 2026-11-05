@@ -8,6 +8,7 @@ import { DocForm, MaintForm, RepairForm, VehicleForm, KmUpdateForm } from '@/com
 import { FormModal } from '@/components/FormModal';
 import { uploadFiles } from '@/components/Attachments';
 import type { Doc } from '@/lib/types';
+import { confusablePairs, twinsOf } from '@/lib/confusable';
 import { bajaLine, exportLegajo, parseBaja, vehicleHistory, withBaja, withoutBaja } from '@/lib/archive';
 import { useModal } from '@/components/useModal';
 import { KmTimeline } from '@/components/HistoryTimeline';
@@ -54,6 +55,7 @@ export default function VehiculoDetalle() {
   const ms = maintenance.filter((m) => m.vehicle_id === v.id);
   const hist = vehicleHistory(v.id, { drivers, documents, repairs, maintenance, fuel_loads, trips, km_history, km_reports, infractions, fines, attachments, workshops });
   const baja = parseBaja(v.notes);
+  const twin = twinsOf(v.plate, confusablePairs(vehicles));
   const bajaDoc = documents.find((x) => x.vehicle_id === v.id && (x.doc_type as string) === BAJA_DOC);
   const total = rs.reduce((s, r) => s + (r.cost ?? 0), 0) + ms.reduce((s, m) => s + (m.cost ?? 0), 0);
 
@@ -151,6 +153,12 @@ export default function VehiculoDetalle() {
           </button>
         )}
       </div>
+      {twin.length > 0 && (
+        <div role="note" style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 10, margin: '0 0 12px', fontSize: 14 }}>
+          <b>⚠ No mezclar datos:</b> {v.plate} se puede confundir con <b>{twin.join(', ')}</b> (patentes parecidas o del mismo estilo y con km parecidos). Antes de cargar combustible, un service,
+          una reparación o un km, verificá que la patente sea la correcta.
+        </div>
+      )}
       {v.status === 'Baja' && (
         <div role="status" style={{ background: '#f4f3ef', border: '1px solid #d9d6cc', borderRadius: 8, padding: 12, margin: '0 0 12px', fontSize: 14 }}>
           <b>🗄 Vehículo dado de baja{baja ? ` el ${fd(baja.date)}` : ''}.</b> {baja?.text}

@@ -16,6 +16,7 @@ import { uploadFiles } from './Attachments';
 import { recordKmChange, recordRepairChange, recordMaintenanceChange } from '@/lib/history';
 import { readingsOf } from '@/lib/kmAnchor';
 import { gpsReliability } from '@/lib/kmAudit';
+import { confusablePairs, twinsOf } from '@/lib/confusable';
 import { trajectoryOutliers } from '@/lib/kmTrajectory';
 import { OKODO_BASE_KM, OKODO_KM_PER_DAY, TALLER_ROUND_KM } from '@/lib/params';
 
@@ -52,6 +53,11 @@ function useKmGuard() {
       maintenance: exclude?.table === 'maintenance' ? maintenance.filter((m) => m.id !== exclude.id) : maintenance,
       repairs: exclude?.table === 'repairs' ? repairs.filter((r) => r.id !== exclude.id) : repairs,
     });
+    const plateOfV = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
+    const twinsT = twinsOf(plateOfV, confusablePairs(vehicles));
+    const twinTxt = twinsT.length ? `
+
+⚠ Ojo: ${plateOfV} se puede confundir con ${twinsT.join(', ')}. Verificá que el dato sea de este vehículo.` : '';
     const before = [...rd].reverse().find((r) => r.date <= date);
     const after = rd.find((r) => r.date >= date);
     const days = (a: string, b: string) => Math.round((+new Date(b + 'T00:00:00') - +new Date(a + 'T00:00:00')) / 864e5);
@@ -72,7 +78,7 @@ function useKmGuard() {
 
 ${traj.reason}
 
-¿Es correcto? Si no, cancelá y revisalo.`);
+¿Es correcto? Si no, cancelá y revisalo.${twinTxt}`);
     }
     if (!low && !high && !afterLow) return true;
     const ref = low || high ? before! : after!;
@@ -84,7 +90,7 @@ ${traj.reason}
 ` +
         `${low ? 'Es MENOR: el odómetro no retrocede.' : high ? 'Es MUCHO MAYOR de lo posible en ese tiempo.' : 'Supera una lectura posterior ya registrada.'}
 
-¿Es correcto? Si no, cancelá y revisalo.`
+¿Es correcto? Si no, cancelá y revisalo.${twinTxt}`
     );
   };
 }
@@ -441,7 +447,8 @@ export function InfractionForm({ id, onClose }: { id?: string; onClose: () => vo
 }
 
 export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: () => void }) {
-  const { update, reload, trips } = useData();
+  const { update, reload, trips, vehicles: allVeh } = useData();
+  const twinPlates = twinsOf(vehicle.plate, confusablePairs(allVeh));
   const [newKm, setNewKm] = useState(vehicle.km?.toString() ?? '');
   // Fecha en que se LEYÓ el km en el tablero (puede ser anterior a hoy): evita mezclar lecturas de distintos días
   const [readDate, setReadDate] = useState(todayStr());
@@ -504,6 +511,11 @@ Se sumaron ${Math.round(gpsAfter).toLocaleString('es-AR')} km de GPS posteriores
             }
           }}
         >
+          {twinPlates.length > 0 && (
+            <div role="note" style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 8, marginBottom: 12, fontSize: 13 }}>
+              <b>⚠ No mezclar datos:</b> {vehicle.plate} se puede confundir con <b>{twinPlates.join(', ')}</b>. Verificá que el km que vas a cargar sea realmente de {vehicle.plate}.
+            </div>
+          )}
           <div className="fg">
             <label htmlFor="km_date_input">Fecha en que se leyó el km del tablero *</label>
             <input id="km_date_input" type="date" value={readDate} max={todayStr()} onChange={(e) => setReadDate(e.target.value)} />

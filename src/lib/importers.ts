@@ -4,6 +4,7 @@ import { sb } from './supabase';
 import { recordKmChange } from './history';
 import { gpsRange, gpsReliability, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
 import { gpsCoversFrom, lastReading, readingDateOf, readingsOf } from './kmAnchor';
+import { confusablePairs, twinsOf } from './confusable';
 import { trajectoryOutliers, type TReading } from './kmTrajectory';
 import { validateReading, type Anchor } from './kmValidate';
 import { DEFAULT_TANK_L, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
@@ -478,6 +479,9 @@ export function useImporters() {
     }
     // Tarjeta de la carga vs tarjeta registrada del vehículo: si no coinciden, la carga pudo hacerse con la tarjeta de OTRO vehículo
     const cardWarn: string[] = [];
+    // Vehículos fáciles de confundir (p. ej. OQK804 y OUG184): si un km no encaja con el suyo pero SÍ con el del gemelo, se avisa
+    const twinPairs = confusablePairs(vehicles);
+    const twinWarn: string[] = [];
     const rows: object[] = [];
     let dup = 0,
       bad = 0,
@@ -507,6 +511,14 @@ export function useImporters() {
       if (good && trajReason) {
         good = false;
         if (alerts.length < 12) alerts.push(`${x.pt} ${x.fecha}: declaró ${odo?.toLocaleString('es-AR')}. ${trajReason}`);
+      }
+      if (!good && odo !== null && isFuel(x.prod) && twinWarn.length < 10) {
+        for (const tp of twinsOf(v.plate, twinPairs)) {
+          const tv = vehicles.find((w) => w.plate === tp);
+          const ta = tv ? lastReading(tv.id, ref) : null;
+          if (tv && ta && validateReading({ anchor: { date: ta.date, km: ta.km, src: ta.src }, trips, vehicleId: tv.id, fecha: x.fecha, odo, litros: liters, tankL: capOf(tv.id), gpsOk: gpsOkOf(tv.id) }).ok)
+            twinWarn.push(`${x.pt} ${x.fecha}: el km ${odo.toLocaleString('es-AR')} NO encaja con ${x.pt} pero SÍ con ${tp}: puede ser una carga de ${tp} cargada con la patente equivocada (verificar tarjeta y remito ${x.rem || ''}).`);
+        }
       }
       if (odo !== null && !good && isFuel(x.prod)) bad++;
       if (good && (!st.odoDate || x.fecha >= st.odoDate)) {
@@ -554,7 +566,7 @@ export function useImporters() {
     }
     await reload('vehicles', 'documents', 'fuel_loads');
     alert(
-      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por no coincidir con el GPS:\n${alerts.join('\n')}` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}${cardWarn.length ? `\n\n⚠ Cargas con una tarjeta distinta a la registrada del vehículo (pudo usarse la tarjeta de otro vehículo; verificar):\n${cardWarn.join('\n')}` : ''}`
+      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por no coincidir con el GPS:\n${alerts.join('\n')}` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}${twinWarn.length ? `\n\n⚠ Posibles datos mezclados entre vehículos parecidos:\n${twinWarn.join('\n')}` : ''}${cardWarn.length ? `\n\n⚠ Cargas con una tarjeta distinta a la registrada del vehículo (pudo usarse la tarjeta de otro vehículo; verificar):\n${cardWarn.join('\n')}` : ''}`
     );
   }
 

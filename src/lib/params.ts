@@ -83,6 +83,12 @@ export const PARAM_DOCS: ParamDoc[] = [
     review: 'Con más lecturas por vehículo se puede subir a más vecinas y afinar el margen. Es la mejora que más se beneficia de tener más datos.',
   },
   {
+    name: 'Vehículos fáciles de confundir',
+    value: 'patentes que difieren en ≤ 2 caracteres, o del mismo estilo antiguo (3 letras + 3 números) que empiezan igual y con km dentro del 10 %; más los pares que indique el responsable (OQK804 ↔ OUG184)',
+    why: 'Si un dato se carga en el vehículo equivocado, los km y consumos de los dos quedan mal. En septiembre una carga del OUG184 (309.194 km) también encaja con la trayectoria del OQK804, y no se puede saber de cuál es. Se avisa en la ficha, en el formulario de km, al guardar registros, al importar combustible y en Auditoría.',
+    review: 'Cuando haya más lecturas por vehículo, la coincidencia con el gemelo se podrá descartar con más seguridad.',
+  },
+  {
     name: 'GPS caído',
     value: `máximo del rango < ${GPS_DEAD_RATIO * 100} % del odómetro`,
     why: 'El Sandero (AF751HM) tuvo el GPS sin registrar en septiembre: se mide por odómetro y se avisa revisar el equipo.',
