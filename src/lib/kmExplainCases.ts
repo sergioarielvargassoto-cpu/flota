@@ -5,6 +5,7 @@
  */
 import type { TripLite } from './kmAudit';
 import { pairOk, type TReading } from './kmTrajectory';
+import { OKODO_BASE_KM, OKODO_KM_PER_DAY } from './params';
 import type { Explanation, Neighbor } from './kmExplain';
 
 const f = (n: number) => Math.round(n).toLocaleString('es-AR');
@@ -49,12 +50,12 @@ export function explainInvalidReading(p: {
   if (prev && p.declared < prev.km) causes.push(`Es ${f(prev.km - p.declared)} km MENOR que la lectura anterior (${f(prev.km)} el ${fd(prev.date)}): el odómetro no baja, así que hubo un error al tipearlo o se leyó otro dato.`);
   if (prev && p.declared > prev.km) {
     const dd = Math.max(1, days(prev.date, p.date));
-    if (p.declared - prev.km > dd * 700 + 1000) causes.push(`Desde la lectura anterior (${f(prev.km)} el ${fd(prev.date)}) habría recorrido ${f(p.declared - prev.km)} km en ${dd} día(s), más de lo físicamente posible (≈ 700 km por día).`);
+    if (p.declared - prev.km > dd * OKODO_KM_PER_DAY + OKODO_BASE_KM) causes.push(`Desde la lectura anterior (${f(prev.km)} el ${fd(prev.date)}) habría recorrido ${f(p.declared - prev.km)} km en ${dd} día(s), más de lo físicamente posible (≈ ${f(OKODO_KM_PER_DAY)} km por día).`);
   }
   if (next) {
     const dd = Math.max(1, days(p.date, next.date));
     if (next.km < p.declared) causes.push(`La lectura válida siguiente (${f(next.km)} el ${fd(next.date)}) es MENOR: el odómetro no puede bajar, así que este valor no es posible.`);
-    else if (next.km - p.declared > dd * 700 + 1000) causes.push(`Para llegar de ${f(p.declared)} a ${f(next.km)} (${fd(next.date)}) tendría que haber recorrido ${f(next.km - p.declared)} km en ${dd} día(s) (≈ ${f((next.km - p.declared) / dd)} km por día): imposible.`);
+    else if (next.km - p.declared > dd * OKODO_KM_PER_DAY + OKODO_BASE_KM) causes.push(`Para llegar de ${f(p.declared)} a ${f(next.km)} (${fd(next.date)}) tendría que haber recorrido ${f(next.km - p.declared)} km en ${dd} día(s) (≈ ${f((next.km - p.declared) / dd)} km por día): imposible.`);
   }
   const other = p.fleet.find((x) => x.plate !== p.plate && Math.abs(x.km - p.declared) <= 300 && Math.abs(days(x.date, p.date)) <= 7);
   if (other) causes.push(`Coincide (±300 km) con el odómetro de ${other.plate} (${f(other.km)} km el ${fd(other.date)}): puede que la carga sea de ese otro vehículo y se haya cargado con esta patente.`);
@@ -86,7 +87,6 @@ export function explainPair(p: {
   trips: TripLite[];
   vehicleId: string;
   gpsReliable: boolean;
-  trustNote?: string;
 }): Explanation {
   const seen: string[] = [];
   const causes: string[] = [];
@@ -122,7 +122,6 @@ export function explainPair(p: {
         ? `Para que el tramo cierre con el GPS, la lectura del ${fd(p.prev.date)} tendría que ser al menos ${f(need)} km más baja, o la del ${fd(p.cur.date)} al menos ${f(need)} km más alta.`
         : `Para que cierre, la lectura del ${fd(p.cur.date)} tendría que ser al menos ${f(need)} km más baja, o la del ${fd(p.prev.date)} al menos ${f(need)} km más alta. También puede ser que el GPS no haya registrado parte del recorrido (sin señal, equipo desconectado).`
     );
-    if (p.trustNote) causes.push(p.trustNote);
     todo.push('Revisar los remitos de las dos cargas (km y hora) y, si hay dudas, la foto del tablero.');
     todo.push('Si el GPS tuvo un corte esos días, no es un error del odómetro: verificar en Gestya el historial del equipo.');
   }

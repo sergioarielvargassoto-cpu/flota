@@ -63,7 +63,19 @@ export function gpsCoversFrom(firstGpsDate: string | null, readingDate: string):
   return firstGpsDate <= next;
 }
 
-/** La lectura más reciente (a igual fecha, la de mayor km), o null si no hay ninguna. */
+/**
+ * ¿El último km cargado a mano de este vehículo es un marcador 0/negativo ("pendiente de verificar")?
+ * Mientras sea así, ni el combustible ni el GPS acumulado deben pisar el km del vehículo.
+ */
+export function isPendingKm(vehicleId: string, hist: KmHistory[]): boolean {
+  const m = hist
+    .filter((h) => h.vehicle_id === vehicleId && !/^(gps|combustible|registro):/.test(h.changed_by))
+    .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
+    .pop();
+  return !!m && m.km <= 0;
+}
+
+/** La lectura más reciente por fecha; a igual fecha manda el origen (a mano > taller > estación) y, entre cargas manuales, la última cargada. */
 export function lastReading(
   vehicleId: string,
   d: { fuel_loads: Fuel[]; km_history: KmHistory[]; maintenance: Maint[]; repairs: Repair[] }

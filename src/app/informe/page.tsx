@@ -460,7 +460,7 @@ export default function Informe() {
                       <span title={`Intervalo de confianza 95 %: ${Math.round(x.trust.lo)}–${Math.round(x.trust.hi)} % de km válidos`}>
                         {x.trust.level === 'alta' ? '✔ Alta' : x.trust.level === 'baja' ? '⚠ Baja' : 'Media'}{' '}
                         <span className="muted">
-                          ({Math.round((x.trust.loads * x.trust.validPct) / 100)}/{x.trust.loads})
+                          ({Math.round((x.trust.loads * x.trust.validPct) / 100)}/{x.trust.loads} · IC {Math.round(x.trust.lo)}–{Math.round(x.trust.hi)} %)
                         </span>
                       </span>
                     )}
@@ -471,6 +471,7 @@ export default function Informe() {
             </tbody>
           </table>
         </div>
+        <p className="muted" style={{ fontSize: 12 }}>Confianza = cargas con km válido / cargas totales; IC = intervalo de confianza del 95 % del porcentaje de km válidos (con pocas cargas es muy ancho). Un km inválido puede ser error de la estación: no es una acusación al conductor.</p>
         {!finesLoaded && <p className="muted">Multas: todavía no hay infracciones cargadas en este período.</p>}
       </Section>
 

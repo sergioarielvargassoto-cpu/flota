@@ -19,6 +19,10 @@ export const GPS_RELIABLE_MIN = 0.75;
 export const GPS_RELIABLE_MAX = 1.3;
 /** Ningún vehículo de la flota gasta menos que esto: base de la regla física (km máximos = (litros + tanque) / este valor). */
 export const PHYSICAL_MIN_L_PER_100 = 3.5;
+/** La regla física solo se aplica si la referencia es de hace hasta este número de días (con una referencia vieja pudo haber cargas que no están en los datos). */
+export const PHYSICAL_RULE_MAX_GAP_DAYS = 7;
+/** Una carga mayor a esto se considera un error de tipeo y NO se usa para estimar la capacidad del tanque. */
+export const MAX_PLAUSIBLE_LOAD_L = 300;
 /** Capacidad de tanque supuesta si no se conoce (se usa la mayor carga vista si es mayor). */
 export const DEFAULT_TANK_L = 40;
 /** Margen de desvío de consumo aceptable por tipo de vehículo. */

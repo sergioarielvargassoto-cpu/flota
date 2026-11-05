@@ -22,7 +22,7 @@ const lev = (a: string, b: string) => {
 const oldFormat = (p: string) => /^[A-Z]{3}\d{3}$/.test(p);
 
 export function confusablePairs(vehicles: Pick<Vehicle, 'plate' | 'km' | 'status'>[]): Pair[] {
-  const vs = vehicles.filter((v) => v.status !== 'Baja');
+  const vs = vehicles.filter((v) => v.status !== 'Baja' && !!v.plate);
   const key = (a: string, b: string) => [a, b].sort().join('|');
   const map = new Map<string, Pair>();
   const add = (a: string, b: string, reason: string, owner = false) => {
@@ -48,7 +48,7 @@ export const twinsOf = (plate: string, pairs: Pair[]): string[] => pairs.filter(
 type Data = { vehicles: Vehicle[]; fuel_loads: Fuel[]; km_history: KmHistory[]; maintenance: Maint[]; repairs: Repair[]; trips: Trip[] };
 
 /** Datos cargados a `from` (cargas, mantenimientos, reparaciones) que ENCAJAN con la trayectoria de `to`: pudieron cargarse en el vehículo equivocado. */
-export function crossFits(from: Vehicle, to: Vehicle, d: Data): { what: string; date: string; km: number; valid: boolean }[] {
+export function crossFits(from: Vehicle, to: Vehicle, d: Data): { what: string; date: string; km: number; valid: boolean; weak: boolean }[] {
   const toRef = {
     fuel_loads: d.fuel_loads.filter((x) => x.vehicle_id === to.id),
     km_history: d.km_history.filter((x) => x.vehicle_id === to.id),
@@ -66,8 +66,12 @@ export function crossFits(from: Vehicle, to: Vehicle, d: Data): { what: string; 
     ...d.maintenance.filter((x) => x.vehicle_id === from.id && x.km != null).map((x) => ({ what: `mantenimiento ${x.type}`, date: x.date, km: x.km as number, valid: true })),
     ...d.repairs.filter((x) => x.vehicle_id === from.id && x.km != null).map((x) => ({ what: 'reparación', date: x.date, km: x.km as number, valid: true })),
   ];
-  return cands.filter((c) => {
-    const withC: TReading[] = [...base, { key: 'X', date: c.date, km: c.km, src: 'estación' }];
-    return !trajectoryOutliers(withC, vt, to.id, ok).some((f) => f.key === 'X');
-  });
+  // Sin GPS confiable en el vehículo destino, "encaja" solo significa "es físicamente posible": evidencia DÉBIL (casi cualquier valor entra en un hueco largo)
+  const weak = !(ok && vt.length > 0);
+  return cands
+    .filter((c) => {
+      const withC: TReading[] = [...base, { key: 'X', date: c.date, km: c.km, src: 'estación' }];
+      return !trajectoryOutliers(withC, vt, to.id, ok).some((f) => f.key === 'X');
+    })
+    .map((c) => ({ ...c, weak }));
 }

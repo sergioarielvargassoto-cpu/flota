@@ -14,7 +14,8 @@ import {
 import { FormModal, type Field } from './FormModal';
 import { uploadFiles } from './Attachments';
 import { recordKmChange, recordRepairChange, recordMaintenanceChange } from '@/lib/history';
-import { readingsOf } from '@/lib/kmAnchor';
+import { lastReading, readingsOf } from '@/lib/kmAnchor';
+import { recomputeVehicleKm } from '@/lib/kmRecompute';
 import { gpsReliability } from '@/lib/kmAudit';
 import { confusablePairs, twinsOf } from '@/lib/confusable';
 import { trajectoryOutliers } from '@/lib/kmTrajectory';
@@ -37,61 +38,60 @@ function useBump() {
  * Control ANTES de guardar un registro con km: si no es coherente con las lecturas vecinas del vehículo (retrocede más del
  * redondeo habitual de taller, o sube más de lo físicamente posible), pide confirmación. Evita tipeos como 213.000 en vez de 143.000.
  */
+type GuardSrc = 'estación' | 'manual' | 'mantenimiento' | 'reparación';
 function useKmGuard() {
   const { vehicles, fuel_loads, km_history, maintenance, repairs, trips } = useData();
   return (
     vehicleId: string,
     km: unknown,
     date: string,
-    exclude?: { table: 'maintenance' | 'repairs'; id?: string }
+    opts?: { exclude?: { table: 'maintenance' | 'repairs' | 'fuel_loads'; id?: string }; src?: GuardSrc }
   ): boolean => {
     const n = km === null || km === undefined || km === '' ? NaN : Number(km);
     if (!Number.isFinite(n) || !date) return true;
+    const ex = opts?.exclude;
+    const src: GuardSrc = opts?.src ?? (ex?.table === 'repairs' ? 'reparación' : ex?.table === 'fuel_loads' ? 'estación' : ex?.table === 'maintenance' ? 'mantenimiento' : 'manual');
     const rd = readingsOf(vehicleId, {
-      fuel_loads,
+      fuel_loads: ex?.table === 'fuel_loads' ? fuel_loads.filter((x) => x.id !== ex.id) : fuel_loads,
       km_history,
-      maintenance: exclude?.table === 'maintenance' ? maintenance.filter((m) => m.id !== exclude.id) : maintenance,
-      repairs: exclude?.table === 'repairs' ? repairs.filter((r) => r.id !== exclude.id) : repairs,
+      maintenance: ex?.table === 'maintenance' ? maintenance.filter((m) => m.id !== ex.id) : maintenance,
+      repairs: ex?.table === 'repairs' ? repairs.filter((r) => r.id !== ex.id) : repairs,
     });
-    const plateOfV = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
-    const twinsT = twinsOf(plateOfV, confusablePairs(vehicles));
+    const plate = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
+    const twinsT = twinsOf(plate, confusablePairs(vehicles));
     const twinTxt = twinsT.length ? `
 
-⚠ Ojo: ${plateOfV} se puede confundir con ${twinsT.join(', ')}. Verificá que el dato sea de este vehículo.` : '';
+⚠ Ojo: ${plate} se puede confundir con ${twinsT.join(', ')}. Verificá que el dato sea de este vehículo.` : '';
     const before = [...rd].reverse().find((r) => r.date <= date);
     const after = rd.find((r) => r.date >= date);
     const days = (a: string, b: string) => Math.round((+new Date(b + 'T00:00:00') - +new Date(a + 'T00:00:00')) / 864e5);
     const low = !!before && n < before.km - TALLER_ROUND_KM;
     const high = !!before && n > before.km + Math.max(1, days(before.date, date)) * OKODO_KM_PER_DAY + OKODO_BASE_KM;
     const afterLow = !!after && n > after.km + TALLER_ROUND_KM;
+    const farBefore = !!after && n < after.km - (Math.max(1, days(date, after.date)) * OKODO_KM_PER_DAY + OKODO_BASE_KM);
     // Contraste con la TRAYECTORIA: el km nuevo se compara con hasta 3 lecturas anteriores y 3 posteriores (cualquier fuente) y con el GPS
-    const cand = { key: 'NUEVA', date, km: n, src: exclude?.table === 'repairs' ? ('reparación' as const) : ('mantenimiento' as const) };
+    const cand = { key: 'NUEVA', date, km: n, src };
     const traj = trajectoryOutliers(
       [...rd.map((r) => ({ key: `${r.date}|${r.km}|${r.src}`, date: r.date, km: r.km, src: r.src })), cand],
       trips,
       vehicleId,
       gpsReliability(vehicleId, fuel_loads, trips).reliable
     ).find((f) => f.key === 'NUEVA');
-    if (traj) {
-      const plateT = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
-      return confirm(`El km ${n.toLocaleString('es-AR')} de ${plateT} parece un error.
+    if (traj)
+      return confirm(`El km ${n.toLocaleString('es-AR')} de ${plate} parece un error.
 
 ${traj.reason}
 
 ¿Es correcto? Si no, cancelá y revisalo.${twinTxt}`);
-    }
-    if (!low && !high && !afterLow) return true;
+    if (!low && !high && !afterLow && !farBefore) return true;
     const ref = low || high ? before! : after!;
-    const plate = vehicles.find((v) => v.id === vehicleId)?.plate ?? '';
     const f = (x: string) => x.split('-').reverse().join('/');
-    return confirm(
-      `El km ${n.toLocaleString('es-AR')} de ${plate} no es coherente con la lectura del ${f(ref.date)} (${ref.km.toLocaleString('es-AR')} km, ${ref.src}).
+    const why = low ? 'Es MENOR: el odómetro no retrocede.' : high ? 'Es MUCHO MAYOR de lo posible en ese tiempo.' : afterLow ? 'Supera una lectura posterior ya registrada.' : 'Es MUCHO MENOR que una lectura posterior: no alcanzaría el tiempo para recorrer la diferencia.';
+    return confirm(`El km ${n.toLocaleString('es-AR')} de ${plate} no es coherente con la lectura del ${f(ref.date)} (${ref.km.toLocaleString('es-AR')} km, ${ref.src}).
 
-` +
-        `${low ? 'Es MENOR: el odómetro no retrocede.' : high ? 'Es MUCHO MAYOR de lo posible en ese tiempo.' : 'Supera una lectura posterior ya registrada.'}
+${why}
 
-¿Es correcto? Si no, cancelá y revisalo.${twinTxt}`
-    );
+¿Es correcto? Si no, cancelá y revisalo.${twinTxt}`);
   };
 }
 
@@ -104,6 +104,7 @@ const wOpts = (ws: Workshop[]): [string, string][] => [
 
 export function VehicleForm({ id, onClose }: { id?: string; onClose: () => void }) {
   const { vehicles, drivers, insert, insertMany, update } = useData();
+  const kmOk = useKmGuard();
   const v = id ? vehicles.find((x) => x.id === id) : undefined;
   const fields: Field[] = [
     { k: 'plate', l: 'Patente', req: true, half: true },
@@ -154,6 +155,7 @@ export function VehicleForm({ id, onClose }: { id?: string; onClose: () => void 
         vals.plate = nrm(vals.plate);
         if (v) {
           if (vals.km !== v.km && vals.km !== null) {
+            if (!kmOk(v.id, vals.km, todayStr(), { src: 'manual' })) throw new Error('Revisá el km indicado antes de guardar.');
             vals.km_date = todayStr();
             await recordKmChange(v.id, vals.km as number, v.km);
           }
@@ -293,7 +295,7 @@ export function RepairForm({ id, vehicleId, onClose }: { id?: string; vehicleId?
         { k: 'status', l: 'Estado', t: 'select', options: ['Pendiente', 'En curso', 'Finalizada'], half: true },
       ]}
       onSave={async (vals, files) => {
-        if (!kmOk(vals.vehicle_id as string, vals.km, vals.date as string, { table: 'repairs', id })) throw new Error('Guardado cancelado: revisá el km indicado.');
+        if (!kmOk(vals.vehicle_id as string, vals.km, vals.date as string, { exclude: { table: 'repairs', id } })) throw new Error('Revisá el km indicado antes de guardar.');
         let rid = id;
         if (rid) {
           if (r?.status !== vals.status)
@@ -338,7 +340,7 @@ export function MaintForm({ id, vehicleId, onClose }: { id?: string; vehicleId?:
         { k: 'notes', l: 'Notas', t: 'textarea' },
       ]}
       onSave={async (vals, files) => {
-        if (!kmOk(vals.vehicle_id as string, vals.km, vals.date as string, { table: 'maintenance', id })) throw new Error('Guardado cancelado: revisá el km indicado.');
+        if (!kmOk(vals.vehicle_id as string, vals.km, vals.date as string, { exclude: { table: 'maintenance', id } })) throw new Error('Revisá el km indicado antes de guardar.');
         let mid = id;
         if (mid) {
           if (m?.type !== vals.type) await recordMaintenanceChange(mid, 'type', m?.type || null, vals.type as string);
@@ -366,6 +368,7 @@ export function MaintForm({ id, vehicleId, onClose }: { id?: string; vehicleId?:
 
 export function FuelForm({ id, onClose }: { id?: string; onClose: () => void }) {
   const { vehicles, fuel_loads, insert, update } = useData();
+  const kmOk = useKmGuard();
   const f = id ? fuel_loads.find((x) => x.id === id) : undefined;
   return (
     <FormModal
@@ -389,6 +392,8 @@ export function FuelForm({ id, onClose }: { id?: string; onClose: () => void }) 
         { k: 'station', l: 'Establecimiento' },
       ]}
       onSave={async (vals) => {
+        // Antes un km tipeado acá entraba como lectura válida sin control y movía el km del vehículo
+        if (!kmOk(vals.vehicle_id as string, vals.km, vals.date as string, { exclude: { table: 'fuel_loads', id }, src: 'estación' })) throw new Error('Revisá el km indicado antes de guardar.');
         if (f) await update('fuel_loads', f.id, vals);
         else await insert<Fuel>('fuel_loads', { ...vals, km_raw: vals.km });
       }}
@@ -447,13 +452,16 @@ export function InfractionForm({ id, onClose }: { id?: string; onClose: () => vo
 }
 
 export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: () => void }) {
-  const { update, reload, trips, vehicles: allVeh } = useData();
+  const { update, reload, vehicles: allVeh, fuel_loads, km_history, maintenance, repairs } = useData();
+  const kmOk = useKmGuard();
   const twinPlates = twinsOf(vehicle.plate, confusablePairs(allVeh));
+  const lastR = lastReading(vehicle.id, { fuel_loads, km_history, maintenance, repairs });
   const [newKm, setNewKm] = useState(vehicle.km?.toString() ?? '');
   // Fecha en que se LEYÓ el km en el tablero (puede ser anterior a hoy): evita mezclar lecturas de distintos días
   const [readDate, setReadDate] = useState(todayStr());
   const [busy, setBusy] = useState(false);
-  const kmChange = vehicle.km !== null ? parseInt(newKm || '0') - vehicle.km : null;
+  // El cambio se mide contra la última lectura REAL (no contra el km actual, que ya incluye el GPS posterior)
+  const kmChange = lastR ? parseInt(newKm || '0') - lastR.km : null;
 
   return (
     <div className="ov">
@@ -483,26 +491,30 @@ export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
             if (newKm === '' || isNaN(Number(newKm))) return alert('Ingresa un número válido');
             const num = Number(newKm);
             if (!readDate || readDate > todayStr()) return alert('La fecha de la lectura no puede estar vacía ni ser futura');
-            if (vehicle.km_date && readDate < vehicle.km_date) {
-              if (!confirm(`Esta lectura (${readDate.split('-').reverse().join('/')}) es ANTERIOR a la última registrada (${vehicle.km_date.split('-').reverse().join('/')}). Va a quedar como punto de partida desde esa fecha y se sumará el GPS posterior. ¿Continuar?`)) return;
-            } else if (vehicle.km !== null && num < vehicle.km) {
-              // Permitido (p. ej. un km inflado por GPS), pero con confirmación explícita
-              if (!confirm(`El nuevo km (${num.toLocaleString('es-AR')}) es MENOR al actual (${vehicle.km.toLocaleString('es-AR')}). ¿Confirmás que el tablero marca ese valor?`)) return;
-            } else if (vehicle.km !== null && num - vehicle.km > 5000) {
-              if (!confirm(`El nuevo km sube ${(num - vehicle.km).toLocaleString('es-AR')} km de una vez. ¿Confirmás que el tablero marca ${num.toLocaleString('es-AR')}?`)) return;
+            const fdm = (d: string) => d.split('-').reverse().join('/');
+            if (num <= 0) {
+              if (!confirm('Un km en 0 se guarda como "PENDIENTE DE VERIFICAR": deja sin efecto lo conocido hasta ahora y el sistema no lo pisa con combustible ni con GPS hasta que cargues el km real. ¿Continuar?')) return;
+            } else {
+              // Mismo control que al cargar un mantenimiento o una reparación: contra hasta 3 lecturas vecinas anteriores y posteriores y el GPS
+              if (!kmOk(vehicle.id, num, readDate, { src: 'manual' })) return;
+              if (lastR && readDate < lastR.date) {
+                if (!confirm(`Esta lectura (${fdm(readDate)}) es ANTERIOR a la última lectura real registrada (${fdm(lastR.date)}: ${lastR.km.toLocaleString('es-AR')} km, ${lastR.src}). Queda en el historial, pero el km actual seguirá calculándose desde la lectura más reciente. ¿Continuar?`)) return;
+              }
             }
             setBusy(true);
             try {
-              // km actual = lectura + km de GPS posteriores a la fecha de la lectura; km_date = hasta dónde llega ese dato
-              const after = trips.filter((t) => t.vehicle_id === vehicle.id && t.date > readDate);
-              const gpsAfter = after.reduce((s, t) => s + (Number(t.km_calc) || 0), 0);
-              const kmNow = Math.round(num + gpsAfter);
-              const kmDate = after.reduce((m, t) => (t.date > m ? t.date : m), readDate);
-              await update('vehicles', vehicle.id, { km: kmNow, km_date: kmDate });
+              // Se registra la lectura con SU fecha y el km del vehículo se recalcula con la regla de todo el sistema
+              // (última lectura real + GPS posterior); así no se pisa un marcador pendiente ni una lectura más nueva.
               await recordKmChange(vehicle.id, num, vehicle.km, 'manual', readDate);
-              if (gpsAfter > 0) alert(`Lectura del ${readDate.split('-').reverse().join('/')}: ${num.toLocaleString('es-AR')} km.
-Se sumaron ${Math.round(gpsAfter).toLocaleString('es-AR')} km de GPS posteriores: el km actual queda en ${kmNow.toLocaleString('es-AR')} (al ${kmDate.split('-').reverse().join('/')}).`);
-              await reload('km_history');
+              if (num <= 0) {
+                await update('vehicles', vehicle.id, { km: 0, km_date: readDate });
+              } else {
+                const r = await recomputeVehicleKm(vehicle.id);
+                const kmNow = r.km ?? vehicle.km;
+                alert(`Lectura del ${fdm(readDate)} guardada: ${num.toLocaleString('es-AR')} km.
+Km actual del vehículo: ${kmNow !== null && kmNow !== undefined ? kmNow.toLocaleString('es-AR') : '—'} km${r.km_date ? ` (al ${fdm(r.km_date)})` : ''}, calculado con la lectura más reciente más el GPS posterior.`);
+              }
+              await reload('vehicles', 'km_history');
               onClose();
             } catch (e) {
               alert('Error: ' + (e instanceof Error ? e.message : String(e)));
@@ -544,7 +556,7 @@ Se sumaron ${Math.round(gpsAfter).toLocaleString('es-AR')} km de GPS posteriores
               }}
             >
               <p style={{ margin: '0' }}>
-                <b>Cambio:</b>{' '}
+                <b>Cambio respecto de la última lectura real ({lastR ? lastR.date.split('-').reverse().join('/') : ''}, {lastR?.km.toLocaleString('es-AR')} km):</b>{' '}
                 <span style={{ color: kmChange > 0 ? '#2e7d32' : '#c62828' }}>
                   {kmChange > 0 ? '+' : ''}
                   {kmChange.toLocaleString()} km

@@ -15,7 +15,7 @@ export const CASE_NOTES: Record<string, CaseNote> = {
   'OUG184|2026-09-04|309194': {
     note:
       'El responsable advierte: no darla por válida solo porque encaja con el GPS. Pudo haberse cargado con datos de OTRO vehículo (con YPF en Ruta cada tarjeta está asociada a un vehículo, así que sería poco probable; a confirmar). ' +
-      'Dato del sistema: García Ramón, remito 3561-00082476, 53,08 L, 04/09; el km declarado (309.194) queda a 15 km de lo esperable por el GPS (310.265 al 31/10 menos 1.056 km), y ningún otro vehículo tiene un odómetro cercano. Sigue SIN usarse como lectura hasta confirmar con el comprobante y la tarjeta usada.',
+      'Dato del sistema: García Ramón, remito 3561-00082476, 53,08 L, 04/09; el km declarado (309.194) queda a 15 km de lo esperable por el GPS (310.265 al 31/10 menos 1.056 km), y no se encontró otro vehículo con GPS confiable cuyo odómetro encaje mejor (que encaje en un vehículo sin GPS confiable es evidencia débil). Sigue SIN usarse como lectura hasta confirmar con el comprobante y la tarjeta usada.',
     by: 'Responsable',
     on: '2026-11-04',
   },

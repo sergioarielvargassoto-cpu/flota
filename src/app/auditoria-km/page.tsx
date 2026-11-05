@@ -56,6 +56,8 @@ export default function AuditoriaKm() {
     () => ({ vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions }),
     [vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions]
   );
+  // Confiabilidad del GPS de cada vehículo, calculada UNA vez (antes se repetía por cada fila)
+  const gpsRel = useMemo(() => new Map(vehicles.map((v) => [v.id, gpsReliability(v.id, fuel_loads, trips).reliable])), [vehicles, fuel_loads, trips]);
   // Lecturas de cualquier fuente que no encajan con las vecinas (todo el historial): errores de tipeo en estaciones, talleres o cargas a mano
   const offTrack = useMemo(() => {
     const out: { plate: string; vehicleId: string; date: string; km: number; src: string; label?: string; level: string; agree: number; of: number; lo?: number; hi?: number; reason: string; explain: Explanation; note: ReturnType<typeof caseNoteFor> }[] = [];
@@ -66,8 +68,9 @@ export default function AuditoriaKm() {
         rd.map((r) => ({ key: `${r.date}|${r.km}|${r.src}`, date: r.date, km: r.km, src: r.src })),
         trips,
         v.id,
-        gpsReliability(v.id, fuel_loads, trips).reliable
+        gpsRel.get(v.id) ?? true
       );
+      const vTrips = trips.filter((t) => t.vehicle_id === v.id);
       for (const f of found) {
         const [date, km, src] = f.key.split('|');
         const kmN = Number(km);
@@ -86,9 +89,9 @@ export default function AuditoriaKm() {
           neighbors: others,
           expectedLo: f.expectedLo,
           expectedHi: f.expectedHi,
-          trips,
+          trips: vTrips,
           vehicleId: v.id,
-          gpsReliable: gpsReliability(v.id, fuel_loads, trips).reliable,
+          gpsReliable: gpsRel.get(v.id) ?? true,
           serviceKm: settings.service_km,
           lastServiceKm: v.last_service_km,
           currentKm: v.km,
@@ -98,7 +101,7 @@ export default function AuditoriaKm() {
       }
     }
     return out.sort((a, b) => b.date.localeCompare(a.date));
-  }, [vehicles, trips, fuel_loads, km_history, maintenance, repairs, settings]);
+  }, [vehicles, trips, fuel_loads, km_history, maintenance, repairs, settings, gpsRel]);
   // Pares de vehículos que se pueden confundir y datos de uno que también encajan con el otro
   const twins = useMemo(() => {
     const pairs = confusablePairs(vehicles);
@@ -149,7 +152,7 @@ export default function AuditoriaKm() {
     function fleet0(): Data {
       return { vehicles, drivers, fuel_loads, trips, repairs, maintenance, infractions };
     }
-    const pairs = fuelPairs(fleet0(), from, to)
+    const pairs = between.pairs
       .filter((p) => p.sameDay || (p.gpsDiff !== null && p.gpsDiff !== 0))
       .map((p) => ({
         p,
@@ -163,12 +166,12 @@ export default function AuditoriaKm() {
           gpsDiff: p.gpsDiff,
           sameDay: p.sameDay,
           others: (validByVeh.get(p.vehicle.id) ?? []).filter((x) => !(x.date === p.prev.date && x.km === p.prevKm) && !(x.date === p.cur.date && x.km === p.curKm)),
-          trips,
+          trips: trips.filter((t) => t.vehicle_id === p.vehicle.id),
           vehicleId: p.vehicle.id,
-          gpsReliable: gpsReliability(p.vehicle.id, fuel_loads, trips).reliable,
+          gpsReliable: gpsRel.get(p.vehicle.id) ?? true,
         }),
       }));
-    const cons = vehicleMonth(fleet0(), mKey)
+    const cons = between.wins
       .filter((w) => w.l100Signif && w.l100 !== null && w.l100Ref !== null && w.l100Dev !== null)
       .map((w) => ({
         w,
@@ -197,7 +200,7 @@ export default function AuditoriaKm() {
         return { v, e: explainGps({ plate: v.plate, ratio: g.ratio, n: g.n, zeroDays: vt.filter((t) => Number(t.km_calc) < 5).length, totalDays: vt.length }) };
       });
     return { invalid, pairs, cons, gps };
-  }, [mKey, vehicles, drivers, fuel_loads, km_history, maintenance, repairs, trips, infractions]);
+  }, [mKey, vehicles, drivers, fuel_loads, km_history, maintenance, repairs, trips, infractions, between, gpsRel]);
 
   const { flags, stale, services, discarded } = useMemo(() => {
     const today = new Date().toLocaleDateString('en-CA');
@@ -209,6 +212,8 @@ export default function AuditoriaKm() {
       if (v.status === 'Baja') continue;
       // Lecturas de TABLERO: estaciones de servicio + cargas manuales / registros (el GPS no cuenta como lectura)
       const rs: Reading[] = [];
+      // Las lecturas manuales/de taller que no cuentan (marcador 0 "pendiente" y todo lo anterior a él) se excluyen igual que en el resto del sistema
+      const okRd = new Set(readingsOf(v.id, { fuel_loads, km_history, maintenance, repairs }).map((r) => `${r.date}|${r.km}|${r.src}`));
       fuel_loads.forEach((f) => {
         if (f.vehicle_id === v.id && f.km_raw !== null && f.km_raw !== undefined && isFuel(f.product))
           rs.push({ date: f.date, km: f.km_raw, src: 'estacion', who: f.station ?? '', rejected: f.km === null || f.km === undefined });
@@ -218,14 +223,15 @@ export default function AuditoriaKm() {
         const i = h.changed_by.indexOf(':');
         const src = i > 0 ? h.changed_by.slice(0, i) : 'manual';
         if (src === 'gps' || src === 'combustible' || src === 'registro') return; // combustible ya está en fuel_loads; registro = mantenimiento/reparación con su fecha real
-        rs.push({ date: readingDateOf(h), km: h.km, src, who: i > 0 ? h.changed_by.slice(i + 1) : h.changed_by });
+        if (!okRd.has(`${readingDateOf(h)}|${h.km}|manual`)) return;
+        rs.push({ date: readingDateOf(h), km: h.km, src, who: (i > 0 ? h.changed_by.slice(i + 1) : h.changed_by).replace(/\s*\[lectura:\d{4}-\d{2}-\d{2}\]/, '') });
       });
       // Mantenimientos y reparaciones: el km se anota en el taller leyendo el tablero (puede venir redondeado)
       maintenance.forEach((m) => {
-        if (m.vehicle_id === v.id && m.km !== null) rs.push({ date: m.date, km: m.km, src: 'taller', who: m.type });
+        if (m.vehicle_id === v.id && m.km !== null && okRd.has(`${m.date}|${m.km}|mantenimiento`)) rs.push({ date: m.date, km: m.km, src: 'taller', who: m.type });
       });
       repairs.forEach((r) => {
-        if (r.vehicle_id === v.id && r.km !== null) rs.push({ date: r.date, km: r.km, src: 'taller', who: r.description });
+        if (r.vehicle_id === v.id && r.km !== null && okRd.has(`${r.date}|${r.km}|reparación`)) rs.push({ date: r.date, km: r.km, src: 'taller', who: r.description });
       });
       rs.sort((a, b) => a.date.localeCompare(b.date) || a.km - b.km);
 
@@ -333,12 +339,12 @@ export default function AuditoriaKm() {
                     <ul style={{ margin: '4px 0 0 18px' }}>
                       {t.aInB.map((x, i) => (
                         <li key={'a' + i}>
-                          Cargado a {t.A?.plate}: {x.what}, {num(x.km)} km el {fd(x.date)}{x.valid ? '' : ' (hoy descartado)'} → también encaja con {t.B?.plate}. No se puede asegurar de cuál es.
+                          Cargado a {t.A?.plate}: {x.what}, {num(x.km)} km el {fd(x.date)}{x.valid ? '' : ' (hoy descartado)'} → también encaja con {t.B?.plate}{x.weak ? ' (evidencia DÉBIL: ' + t.B?.plate + ' no tiene GPS confiable, así que “encaja” solo significa “es posible”)' : ' (evidencia FUERTE: coincide con el GPS)'}. No se puede asegurar de cuál es.
                         </li>
                       ))}
                       {t.bInA.map((x, i) => (
                         <li key={'b' + i}>
-                          Cargado a {t.B?.plate}: {x.what}, {num(x.km)} km el {fd(x.date)}{x.valid ? '' : ' (hoy descartado)'} → también encaja con {t.A?.plate}. No se puede asegurar de cuál es.
+                          Cargado a {t.B?.plate}: {x.what}, {num(x.km)} km el {fd(x.date)}{x.valid ? '' : ' (hoy descartado)'} → también encaja con {t.A?.plate}{x.weak ? ' (evidencia DÉBIL: ' + t.A?.plate + ' no tiene GPS confiable, así que “encaja” solo significa “es posible”)' : ' (evidencia FUERTE: coincide con el GPS)'}. No se puede asegurar de cuál es.
                         </li>
                       ))}
                     </ul>
@@ -353,8 +359,8 @@ export default function AuditoriaKm() {
       <h3>🧭 Lecturas que no encajan con las demás del vehículo</h3>
       <p className="muted">
         Cada lectura (de estación, cargada a mano, de mantenimiento o de reparación) se contrasta con hasta 3 anteriores y 3 posteriores, y con el GPS.
-        <b> Atípica</b>: no concuerda con ninguna. <b>Dudosa</b>: concuerda con menos de la mitad. Se aceptan diferencias de hasta ±500 km por el redondeo
-        de taller. Con más datos esta revisión será más precisa.
+        <b> Atípica</b>: no concuerda con ninguna. <b>Dudosa</b>: concuerda con menos de la mitad. Se aceptan diferencias de hasta ±500 km por registro de taller o carga manual
+        (hasta ±1.000 km entre dos de ellos) por el redondeo. Con más datos esta revisión será más precisa.
       </p>
       {offTrack.length ? (
         <div className="tw">
@@ -416,24 +422,7 @@ export default function AuditoriaKm() {
                     <b>📝 Aclaración del {o.note.by.toLowerCase()} ({fd(o.note.on)}):</b> {o.note.note}
                   </div>
                 )}
-                <div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
-                  <div>
-                    <b>Qué vio el sistema</b>
-                    <ul style={{ margin: '4px 0 0 18px' }}>{o.explain.seen.map((t, k) => <li key={k}>{t}</li>)}</ul>
-                  </div>
-                  <div>
-                    <b>Qué pudo haber pasado (hipótesis)</b>
-                    <ul style={{ margin: '4px 0 0 18px' }}>{o.explain.causes.map((t, k) => <li key={k}>{t}</li>)}</ul>
-                  </div>
-                  <div>
-                    <b>Qué conviene hacer</b>
-                    <ul style={{ margin: '4px 0 0 18px' }}>{o.explain.todo.map((t, k) => <li key={k}>{t}</li>)}</ul>
-                  </div>
-                  <div>
-                    <b>Qué efecto tiene mientras no se corrija</b>
-                    <ul style={{ margin: '4px 0 0 18px' }}>{o.explain.impact.map((t, k) => <li key={k}>{t}</li>)}</ul>
-                  </div>
-                </div>
+                <ExplainView e={o.explain} />
               </div>
             ))}
           </div>
@@ -610,7 +599,7 @@ export default function AuditoriaKm() {
             </table>
           </div>
         ) : (
-          <div className="empty">✔ No hay tramos con alertas en {monthLabel(mKey)}.</div>
+          <div className="empty">✔ No hay tramos con alertas{mKey ? ` en ${monthLabel(mKey)}` : ''}.</div>
         );
       })()}
 

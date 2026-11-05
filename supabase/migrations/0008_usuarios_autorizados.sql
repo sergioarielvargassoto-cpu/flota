@@ -3,7 +3,7 @@
 -- Problema: las políticas existentes ("solo_logueados" de 0001 y "*_auth_all" de 0006) dejan pasar a CUALQUIER usuario con
 -- sesión, y el registro de usuarios de Supabase Auth está abierto (cualquiera con la clave pública puede registrarse).
 -- Solución (defensa en profundidad): lista de emails autorizados + una única política por tabla que la consulta.
--- ANTES DE EJECUTAR: (1) revisá el email del dueño más abajo, (2) correr en el SQL Editor de Supabase.
+-- ANTES DE EJECUTAR: (1) revisá el email del dueño más abajo (debe ser exactamente uno de los de `select email from auth.users;`), (2) correr en el SQL Editor de Supabase.
 -- DESPUÉS: desactivar el registro en Authentication > Sign In / Providers > "Allow new users to sign up" = OFF.
 -- Si algo sale mal, la transacción se revierte sola (todo o nada).
 -- =====================================================================
@@ -72,6 +72,14 @@ set allowed_mime_types = array[
   'application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ]
 where id = 'adjuntos';
+
+-- Red de seguridad: si NINGÚN usuario real de la app quedó autorizado (por ejemplo un email mal escrito), se revierte todo y no te quedás sin acceso
+do $$
+begin
+  if not exists (select 1 from public.allowed_users a join auth.users u on lower(u.email) = a.email) then
+    raise exception 'Ningún usuario existente de auth.users quedó autorizado: se revierte la migración. Revisá el email en allowed_users (select email from auth.users;)';
+  end if;
+end $$;
 
 commit;
 

@@ -180,7 +180,7 @@ export function vehicleMonth(d: Data, key: string, withRef = true): VehicleMonth
       if (S !== null && E !== null && E > S) odoCalKm = E - S;
     }
     const l100 = odoKm && winLiters ? (winLiters / odoKm) * 100 : null;
-    const maxLoad = Math.max(0, ...d.fuel_loads.filter((f) => f.vehicle_id === v.id && isFuelProduct(f.product)).map((f) => Number(f.liters) || 0));
+    const maxLoad = Math.max(0, ...d.fuel_loads.filter((f) => f.vehicle_id === v.id && isFuelProduct(f.product)).map((f) => Number(f.liters) || 0).filter((l) => l <= PRM.MAX_PLAUSIBLE_LOAD_L));
     const tankCap = Math.max(maxLoad, PRM.DEFAULT_TANK_L);
     // Si el GPS casi no registró (equipo sin señal / apagado) frente al odómetro, se usa el odómetro
     const gpsDead = hasGps && gpsWinMax !== null && odoKm !== null && gpsWinMax < PRM.GPS_DEAD_RATIO * odoKm;
@@ -478,6 +478,7 @@ export function driverTrust(d: Data): Map<string, Trust> {
   const m = new Map<string, { loads: number; ok: number }>();
   d.fuel_loads.forEach((f) => {
     if (!isFuelProduct(f.product) || f.km_raw === null || f.km_raw === undefined) return;
+    if (!f.driver_name || !norm(f.driver_name)) return; // sin conductor informado no se arma un "conductor" ficticio que mezcle a todos
     const k = norm(f.driver_name);
     const r = m.get(k) ?? { loads: 0, ok: 0 };
     r.loads++;
@@ -572,7 +573,7 @@ export function fuelPairs(d: Data, from: string, to: string): PairRow[] {
         if (tr.level === 'alta')
           flags.push(`Conductor con historial confiable (${tr.loads - Math.round((tr.loads * (100 - tr.validPct)) / 100)} de ${tr.loads} cargas con km válido): conviene revisar el GPS o qué pasó ese día antes de dudar de la lectura`);
         else if (tr.level === 'baja')
-          flags.push(`Conductor con muchas lecturas inválidas (solo ${Math.round(tr.loads * tr.validPct / 100)} de ${tr.loads} válidas, por debajo del resto de forma estadísticamente clara): probable error de carga del km`);
+          flags.push(`Conductor con muchas lecturas inválidas (solo ${Math.round(tr.loads * tr.validPct / 100)} de ${tr.loads} válidas, con un historial de km válidos claramente bajo): probable error de carga del km`);
       }
       out.push({ vehicle: v, prev: a.f, cur: b.f, prevKm: a.odo, curKm: b.odo, dKm, days, sameDay, gpsKm, gpsMin, gpsMax, gpsDiff, l100, flags, trust: tr });
     }
@@ -690,8 +691,8 @@ export function insights(
       out.push({
         sev: 'warning',
         area: 'Auditoría',
-        title: `${r.v.plate}: consumo anormalmente bajo (${f1(r.l100 as number)} L/100 km)`,
-        detail: `Esperable ~${f1(r.l100Ref as number)}. Un consumo tan bajo suele deberse a un odómetro mal cargado (de más) o a litros no registrados. Revisar las lecturas del mes.`,
+        title: `${r.v.plate}: consumo por debajo de lo esperable (${f1(r.l100 as number)} L/100 km, referencia ~${f1(r.l100Ref as number)})`,
+        detail: 'Un consumo claramente por debajo de su referencia suele deberse a un odómetro mal cargado (de más), a un GPS que no cubrió todo o a litros no registrados. Revisar las lecturas del mes.',
       })
     );
   // GPS vs odómetro

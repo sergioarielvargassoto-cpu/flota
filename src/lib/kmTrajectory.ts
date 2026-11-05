@@ -55,14 +55,15 @@ export function trajectoryOutliers(readings: TReading[], trips: TripLite[], vehi
     const idx: number[] = [];
     for (let k = Math.max(0, i - NEIGHBORS_EACH_SIDE); k <= Math.min(R.length - 1, i + NEIGHBORS_EACH_SIDE); k++) if (k !== i) idx.push(k);
     if (!idx.length) return;
-    const agree = idx.filter((k) => (k < i ? pairOk(R[k], r, trips, vehicleId, gps) : pairOk(r, R[k], trips, vehicleId, gps))).length;
-    const level: Level | null = agree === 0 ? 'atípica' : idx.length >= 3 && agree < Math.ceil(idx.length / 2) ? 'dudosa' : null;
+    const agree = idx.filter((k) => (k < i ? pairOk(R[k], r, vt, vehicleId, gps) : pairOk(r, R[k], vt, vehicleId, gps))).length;
+    // Con UNA sola vecina no hay forma de saber cuál de las dos está mal: se marca 'dudosa' (y no 'atípica', que es lo que el importador descarta)
+    const level: Level | null = agree === 0 ? (idx.length >= 2 ? 'atípica' : 'dudosa') : idx.length >= 3 && agree < Math.ceil(idx.length / 2) ? 'dudosa' : null;
     if (!level) return;
     const near = [...idx].sort((p, q) => Math.abs(days(R[p].date, r.date)) - Math.abs(days(R[q].date, r.date)))[0];
     const n = R[near];
     let lo: number | undefined, hi: number | undefined;
     if (gps.ok && gps.first && gps.last && n.date >= gps.first && r.date <= gps.last && n.date !== r.date) {
-      const rg = n.date < r.date ? gpsRange(trips, vehicleId, n.date, r.date) : gpsRange(trips, vehicleId, r.date, n.date);
+      const rg = n.date < r.date ? gpsRange(vt, vehicleId, n.date, r.date) : gpsRange(vt, vehicleId, r.date, n.date);
       lo = n.date < r.date ? n.km + rg.min : n.km - rg.max;
       hi = n.date < r.date ? n.km + rg.max : n.km - rg.min;
     } else {
@@ -77,7 +78,7 @@ export function trajectoryOutliers(readings: TReading[], trips: TripLite[], vehi
       near: { date: n.date, km: n.km, src: n.src },
       expectedLo: Math.round(lo),
       expectedHi: Math.round(hi),
-      reason: `${level === 'atípica' ? 'No concuerda con ninguna' : `Concuerda solo con ${agree} de`} ${level === 'atípica' ? `de las ${idx.length}` : `${idx.length}`} lecturas vecinas (la más cercana: ${n.km.toLocaleString('es-AR')} km el ${n.date.split('-').reverse().join('/')}, ${n.src}). Lo esperable era entre ${Math.round(lo).toLocaleString('es-AR')} y ${Math.round(hi).toLocaleString('es-AR')} km.`,
+      reason: `${agree === 0 ? `No concuerda con ${idx.length === 1 ? 'la única lectura vecina' : `ninguna de las ${idx.length} lecturas vecinas`}` : `Concuerda solo con ${agree} de ${idx.length} lecturas vecinas`} (la más cercana: ${n.km.toLocaleString('es-AR')} km el ${n.date.split('-').reverse().join('/')}, ${n.src}). ${hi - lo > 8000 ? 'Con las lecturas vecinas disponibles no se puede acotar un valor esperable (el rango sería demasiado ancho).' : `Lo esperable era entre ${Math.round(lo).toLocaleString('es-AR')} y ${Math.round(hi).toLocaleString('es-AR')} km.`}${idx.length === 1 ? ' Con una sola vecina no se puede saber cuál de las dos lecturas está mal.' : ''}`,
     });
   });
   return out;

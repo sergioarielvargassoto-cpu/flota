@@ -3,11 +3,12 @@ import { useData } from './data';
 import { sb } from './supabase';
 import { recordKmChange } from './history';
 import { gpsRange, gpsReliability, lastGpsDate, outsideRange, type TripLite } from './kmAudit';
-import { gpsCoversFrom, lastReading, readingDateOf, readingsOf } from './kmAnchor';
+import { gpsCoversFrom, isPendingKm, lastReading, readingsOf } from './kmAnchor';
+import { recomputeVehicleKm } from './kmRecompute';
 import { confusablePairs, twinsOf } from './confusable';
 import { trajectoryOutliers, type TReading } from './kmTrajectory';
 import { validateReading, type Anchor } from './kmValidate';
-import { DEFAULT_TANK_L, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
+import { DEFAULT_TANK_L, MAX_PLAUSIBLE_LOAD_L, OKODO_BACK_KM, OKODO_BASE_KM, OKODO_KM_PER_DAY, PHYSICAL_MIN_L_PER_100 } from './params';
 import type { ColSpec } from './excel';
 import type { Vehicle } from './types';
 import { DOC_VEHICLE_DEFAULT, isFuel, nrm, okOdo, pDate, pNum, todayStr } from './util';
@@ -180,12 +181,16 @@ export function useImporters() {
     );
     const byVeh = new Map<string, { vehicle_id: string; date: string; km_calc: number }[]>();
     dbT.forEach((t) => {
-      if (inList.has(t.vehicle_id))
-        byVeh.set(t.vehicle_id, [...(byVeh.get(t.vehicle_id) ?? []), { ...t, km_calc: Number(t.km_calc) || 0 }]);
+      if (!inList.has(t.vehicle_id)) return;
+      const list = byVeh.get(t.vehicle_id) ?? [];
+      list.push({ ...t, km_calc: Number(t.km_calc) || 0 });
+      byVeh.set(t.vehicle_id, list);
     });
     for (const [vid, arr] of byVeh) {
       const v = [...byPlate.values()].find((x) => x.id === vid);
       if (!v) continue;
+      // Km "pendiente de verificar" (marcador 0 cargado a mano): ni el GPS acumulado debe pisarlo hasta que el responsable cargue el km real
+      if (isPendingKm(vid, km_history)) continue;
       // Preferido: última lectura REAL (estación, km a mano, mantenimiento/reparación) + todo el GPS posterior.
       // Se recalcula siempre desde ahí, así un km guardado de origen dudoso no se arrastra. Requiere que el GPS cubra desde la lectura.
       const anchor = anchorBy.get(vid) ?? null;
@@ -325,9 +330,10 @@ export function useImporters() {
         byVeh.set(r.vehicle_id, [...(byVeh.get(r.vehicle_id) ?? []), { date: r.date, km: r.km }])
       );
       for (const [vid, arr] of byVeh) {
-        // Solo se audita contra GPS donde hay GPS: el vehículo debe tener recorridos cubriendo el tramo
+        // Solo se audita contra GPS donde hay GPS CONFIABLE: igual que al importar combustible y en Auditoría (un GPS intermitente no acusa a las estaciones)
         const vt = allTrips.filter((t) => t.vehicle_id === vid);
         if (!vt.length) continue;
+        if (!gpsReliability(vid, fuel_loads, trips).reliable) continue;
         const first = vt.reduce((m, t) => (t.date < m ? t.date : m), vt[0].date);
         const last = vt.reduce((m, t) => (t.date > m ? t.date : m), vt[0].date);
         let a = arr[0];
@@ -407,14 +413,12 @@ export function useImporters() {
     // Vehículos con el km "pendiente de verificar" (último km cargado a mano = 0): el combustible NO pisa su km hasta que el responsable lo cargue
     const pendingKm = new Set<string>();
     byPlate.forEach((v) => {
-      const manual = km_history
-        .filter((h) => h.vehicle_id === v.id && !/^(gps|combustible|registro):/.test(h.changed_by))
-        .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
-      if (manual.length && manual[manual.length - 1].km === 0) pendingKm.add(v.id);
+      if (isPendingKm(v.id, km_history)) pendingKm.add(v.id);
     });
     const state = new Map<string, St>();
     byPlate.forEach((v) => {
-      if (!anchor.has(v.id) && v.km !== null && v.km_date) anchor.set(v.id, { date: v.km_date, km: v.km });
+      // El km guardado solo sirve de referencia de reserva si NO está pendiente (un 0 pendiente no es una lectura)
+      if (!anchor.has(v.id) && v.km !== null && v.km_date && !pendingKm.has(v.id)) anchor.set(v.id, { date: v.km_date, km: v.km });
       const a = anchor.get(v.id);
       state.set(v.id, {
         km: v.km,
@@ -434,8 +438,8 @@ export function useImporters() {
       if (c === undefined) {
         c = Math.max(
           DEFAULT_TANK_L,
-          ...fuel_loads.filter((f) => f.vehicle_id === vid && isFuel(f.product)).map((f) => Number(f.liters) || 0),
-          ...L.filter((x) => byPlate.get(x.pt)?.id === vid && isFuel(x.prod)).map((x) => x.lit || 0)
+          ...fuel_loads.filter((f) => f.vehicle_id === vid && isFuel(f.product)).map((f) => Number(f.liters) || 0).filter((l) => l <= MAX_PLAUSIBLE_LOAD_L),
+          ...L.filter((x) => byPlate.get(x.pt)?.id === vid && isFuel(x.prod)).map((x) => x.lit || 0).filter((l) => l <= MAX_PLAUSIBLE_LOAD_L)
         );
         capCache.set(vid, c);
       }
@@ -552,21 +556,14 @@ export function useImporters() {
     }
     for (const [vid, st] of state) {
       if (!st.changed) continue;
-      // km = último odómetro leído + km reportados por GPS posteriores a esa lectura
-      let km = st.km,
-        kmDate = st.date;
-      if (st.odo !== null && st.odoDate && !pendingKm.has(vid)) {
-        const after = trips.filter((t) => t.vehicle_id === vid && t.date > st.odoDate!);
-        km = Math.round(st.odo + after.reduce((a, t) => a + Number(t.km_calc || 0), 0));
-        kmDate = after.reduce((mx, t) => (t.date > mx ? t.date : mx), st.odoDate);
-      }
-      const { error } = await sb().from('vehicles').update({ km, km_date: kmDate, fuel_card: st.card }).eq('id', vid);
+      // Tarjeta nueva (si la hay) y luego km = el MISMO cálculo que usa todo el sistema (última lectura real + GPS posterior), ya con las cargas insertadas
+      const { error } = await sb().from('vehicles').update({ fuel_card: st.card }).eq('id', vid);
       if (error) throw error;
-      if (km !== null && km !== st.prevKm) await recordKmChange(vid, km, st.prevKm, 'combustible');
+      if (!pendingKm.has(vid)) await recomputeVehicleKm(vid);
     }
     await reload('vehicles', 'documents', 'fuel_loads');
     alert(
-      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados por no coincidir con el GPS:\n${alerts.join('\n')}` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}${twinWarn.length ? `\n\n⚠ Posibles datos mezclados entre vehículos parecidos:\n${twinWarn.join('\n')}` : ''}${cardWarn.length ? `\n\n⚠ Cargas con una tarjeta distinta a la registrada del vehículo (pudo usarse la tarjeta de otro vehículo; verificar):\n${cardWarn.join('\n')}` : ''}`
+      `${rows.length} cargas importadas.${dup ? `\n${dup} ya estaban (omitidas).` : ''}${bad ? `\n${bad} odómetros descartados (no coinciden con el GPS, con las lecturas vecinas o con lo físicamente posible):\n${alerts.join('\n')}` : ''}${skipped ? `\n${skipped} filas omitidas (vehículo no creado).` : ''}${twinWarn.length ? `\n\n⚠ Posibles datos mezclados entre vehículos parecidos:\n${twinWarn.join('\n')}` : ''}${cardWarn.length ? `\n\n⚠ Cargas con una tarjeta distinta a la registrada del vehículo (pudo usarse la tarjeta de otro vehículo; verificar):\n${cardWarn.join('\n')}` : ''}`
     );
   }
 

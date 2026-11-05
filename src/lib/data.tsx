@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { sb } from './supabase';
 import { recomputeVehicleKm } from './kmRecompute';
 import type {
@@ -160,14 +160,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // El km del vehículo se deriva de sus registros: al crear/editar/borrar uno que trae km se recalcula (ver kmRecompute.ts)
+  // Cola por vehículo: dos cambios seguidos sobre el mismo vehículo se recalculan UNO DESPUÉS DEL OTRO (si no, el que leyó antes podía escribir al final y dejar un km viejo)
+  const kmQueue = useRef(new Map<string, Promise<unknown>>());
   const touchKm = useCallback(
     async (ids: (string | null | undefined)[]) => {
       const list = [...new Set(ids.filter((x): x is string => !!x))];
       if (!list.length) return;
       try {
-        let changed = false;
-        for (const id of list) changed = (await recomputeVehicleKm(id)) || changed;
-        if (changed) await reload('vehicles', 'km_history');
+        const results = await Promise.all(
+          list.map((id) => {
+            const prev = kmQueue.current.get(id) ?? Promise.resolve();
+            const run = prev.catch(() => undefined).then(() => recomputeVehicleKm(id));
+            kmQueue.current.set(id, run.catch(() => undefined));
+            return run;
+          })
+        );
+        if (results.some((r) => r.changed)) await reload('vehicles', 'km_history');
       } catch (e) {
         console.error('No se pudo recalcular el km del vehículo', e);
       }

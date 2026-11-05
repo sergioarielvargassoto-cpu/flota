@@ -12,3 +12,7 @@ AGENTS.md
 
 # Backups de datos (contienen datos reales)
 backups/
+
+# Cualquier .env (salvo el ejemplo)
+.env*
+!.env.example

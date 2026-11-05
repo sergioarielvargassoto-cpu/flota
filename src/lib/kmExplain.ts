@@ -4,7 +4,7 @@
  * Las causas son HIPÓTESIS ordenadas por lo que muestran los datos; confirmarlas con la factura/remito del taller o de la estación.
  */
 import { gpsRange, type TripLite } from './kmAudit';
-import { OKODO_BASE_KM, OKODO_KM_PER_DAY } from './params';
+import { OKODO_BASE_KM, OKODO_KM_PER_DAY, RANGE_TOL_ABS_KM, TALLER_ROUND_KM } from './params';
 
 export type Neighbor = { date: string; km: number; src: string };
 export type CaseInput = {
@@ -49,7 +49,7 @@ function fittingDates(c: CaseInput): string[] {
       const delta = c.km - prev.km;
       if (c.gpsReliable) {
         const r = gpsRange(c.trips, c.vehicleId, prev.date, d);
-        return delta >= r.min - 120 && delta <= r.max + 120;
+        return delta >= r.min - RANGE_TOL_ABS_KM * 2.4 && delta <= r.max + RANGE_TOL_ABS_KM * 2.4;
       }
       return delta >= -500 && delta <= days(prev.date, d) * OKODO_KM_PER_DAY + OKODO_BASE_KM;
     })();
@@ -57,7 +57,7 @@ function fittingDates(c: CaseInput): string[] {
       const delta = next.km - c.km;
       if (c.gpsReliable) {
         const r = gpsRange(c.trips, c.vehicleId, d, next.date);
-        return delta >= r.min - 120 && delta <= r.max + 120;
+        return delta >= r.min - RANGE_TOL_ABS_KM * 2.4 && delta <= r.max + RANGE_TOL_ABS_KM * 2.4;
       }
       return delta >= -500 && delta <= days(d, next.date) * OKODO_KM_PER_DAY + OKODO_BASE_KM;
     })();
@@ -91,8 +91,8 @@ export function explainCase(c: CaseInput): Explanation {
   }
 
   // ---- Causas probables (hipótesis a confirmar) ----
-  const round500 = c.km % 500 === 0;
-  const roundMinus1 = (c.km + 1) % 1000 === 0 || (c.km + 1) % 500 === 0; // p. ej. 134.999
+  const round500 = c.km % TALLER_ROUND_KM === 0;
+  const roundMinus1 = (c.km + 1) % TALLER_ROUND_KM === 0; // p. ej. 134.999 (un km menos que 135.000)
   const exactSvc = c.km % 5000 === 0;
   const nearSvc = (c.km + 1) % 5000 === 0 || (c.km + 2) % 5000 === 0; // p. ej. 134.999
   if (c.isService && exactSvc)
@@ -130,7 +130,7 @@ export function explainCase(c: CaseInput): Explanation {
   if (c.src === 'mantenimiento' || c.src === 'reparación') {
     const near = c.neighbors.filter((x) => (x.src === 'mantenimiento' || x.src === 'reparación') && Math.abs(days(c.date, x.date)) <= 7);
     const all = [...near, { date: c.date, km: c.km, src: c.src }].sort((a, b) => a.date.localeCompare(b.date));
-    const rounded = all.every((x) => x.km % 500 === 0);
+    const rounded = all.every((x) => x.km % TALLER_ROUND_KM === 0);
     const dec = all.some((x, i) => i > 0 && x.km < all[i - 1].km);
     if (all.length >= 3 && rounded && dec)
       causes.push(
