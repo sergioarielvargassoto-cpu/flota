@@ -73,12 +73,19 @@ export function calcularAnalisisConductores(
 
   const result: AnalisisConductor[] = [];
 
+  const branchOf = new Map(vehicles.map((v) => [v.id, v.branch]));
+
   for (const driver of drivers) {
-    const vehículos = vehiclesByDriver.get(driver.id) || [];
+    // Con sucursal elegida: sólo cuentan los vehículos de esa sucursal y las infracciones hechas con ellos.
+    const vehículos = (vehiclesByDriver.get(driver.id) || []).filter((v) => !branch || v.branch === branch);
     const vehicleIds = new Set(vehículos.map((v) => v.id));
 
     // Infracciones
-    const infraccionesDelConductor = infractions.filter((i) => i.driver_id === driver.id);
+    const infraccionesDelConductor = infractions.filter(
+      (i) => i.driver_id === driver.id && (!branch || branchOf.get(i.vehicle_id) === branch)
+    );
+    // Un chofer sin vehículos ni infracciones en la sucursal elegida no pertenece a ese reporte.
+    if (branch && vehículos.length === 0 && infraccionesDelConductor.length === 0) continue;
     const infraccionesFiltradas =
       mes && ano
         ? infraccionesDelConductor.filter((i) => {

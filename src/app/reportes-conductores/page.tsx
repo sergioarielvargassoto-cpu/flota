@@ -79,6 +79,9 @@ export default function ReportesConductores() {
   const mesTxt = `${String(m).padStart(2, '0')}/${year}`;
 
   // Calcular análisis
+  const branches = [...new Set(vehicles.map((v) => v.branch))];
+  // "Todas las sucursales" (valor vacío) = null: antes caía en la primera sucursal y no se podía ver el total.
+  const branch = selectedBranch && branches.includes(selectedBranch) ? selectedBranch : null;
   const analisis = calcularAnalisisConductores(
     drivers,
     infractions,
@@ -87,10 +90,8 @@ export default function ReportesConductores() {
     fuel_loads,
     m,
     year,
-    selectedBranch || undefined
+    branch || undefined
   );
-  const branches = [...new Set(vehicles.map((v) => v.branch))];
-  const branch = selectedBranch && branches.includes(selectedBranch) ? selectedBranch : (branches[0] ?? null);
 
   // KPIs
   const ratingPromedio =

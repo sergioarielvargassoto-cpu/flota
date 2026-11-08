@@ -31,7 +31,8 @@ export default function ReportesKm() {
   // Filtrar reportes del mes seleccionado
   const reports = km_reports.filter((r) => r.year === year && r.month === m);
   const branches = [...new Set(reports.map((r) => r.branch).filter(Boolean))] as string[];
-  const branch = selectedBranch && branches.includes(selectedBranch) ? selectedBranch : (branches[0] ?? null);
+  // "Todas las sucursales" (valor vacío) = null: antes caía en la primera sucursal y no se podía ver el total.
+  const branch = selectedBranch && branches.includes(selectedBranch) ? selectedBranch : null;
 
   // Datos para tabla
   const data = reports

@@ -54,6 +54,9 @@ export default function ReportesCostos() {
   const [year, m] = (month || `${selectedYear}-01`).split('-').map(Number);
 
   // Calcular análisis
+  const branches = [...new Set(vehicles.map((v) => v.branch))];
+  // "Todas las sucursales" (valor vacío) = null: antes caía en la primera sucursal y no se podía ver el total.
+  const branch = selectedBranch && branches.includes(selectedBranch) ? selectedBranch : null;
   const analisis = calcularAnalisisCostos(
     vehicles,
     fuel_loads,
@@ -63,10 +66,8 @@ export default function ReportesCostos() {
     km_reports,
     m,
     year,
-    selectedBranch || undefined
+    branch || undefined
   );
-  const branches = [...new Set(vehicles.map((v) => v.branch))];
-  const branch = selectedBranch && branches.includes(selectedBranch) ? selectedBranch : (branches[0] ?? null);
 
   // Filtrar por tipo gasto
   let dataFiltrada = analisis;
