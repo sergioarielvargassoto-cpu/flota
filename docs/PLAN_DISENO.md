@@ -39,7 +39,7 @@ Extra pedido por el dueño (07/11): vehículos ordenados de la patente más nuev
 - [x] 8. Tablas: `th scope`, `caption`, cifras `tabular-nums`
 - [x] 9. Tests: `graficos.ts` (formatos, contraste WCAG de la paleta) con `node --test`
 - [x] 10a. Revisión final: tsc ✅ · build ✅ · 12 tests ✅ · contraste medido ✅ · login verificado en navegador
-- [ ] 10b. Recorrida visual de las pantallas internas (requiere que el dueño inicie sesión)
+- [x] 10b. Aprobado por el dueño (07/11) y publicado (7a1fb60)
 
 ## Contrastes medidos (WCAG 2.x, `scripts/graficos.test.ts` + medición puntual)
 
@@ -62,9 +62,9 @@ Extra pedido por el dueño (07/11): vehículos ordenados de la patente más nuev
 - **Rankings por métrica** (km, importe) no se reordenan por patente.
 
 ## Fallos de lógica preexistentes detectados (no corregidos: no son de presentación)
-- Reportes km y costos: "Todas las sucursales" vuelve a la primera sucursal (`branch = branches[0]`).
-- Reporte de costos: la evolución usa `branch` y la tabla `selectedBranch`.
-- Reporte de conductores: `calcularAnalisisConductores` recibe la sucursal pero no la usa.
+- ✅ **Corregido (b1ba4da)** — Reportes km y costos: "Todas las sucursales" volvía a la primera sucursal (`branch = branches[0]`).
+- ✅ **Corregido (b1ba4da)** — Reporte de costos: la evolución usaba `branch` y la tabla `selectedBranch`.
+- ✅ **Corregido (b1ba4da)** — Reporte de conductores: `calcularAnalisisConductores` recibía la sucursal pero no la usaba (ahora cuenta sólo vehículos de la sucursal e infracciones hechas con ellos).
 - Reporte km: si todos los vehículos del mes están excluidos no aparece el tilde "Mostrar excluidos".
 - Borrar reparación/mantenimiento desde su ficha no borra los adjuntos (desde la tabla sí).
 - **Corregido** (rompía la pantalla): `infracciones/[id]` leía `params.id` en forma sincrónica, que Next 16 ya no permite → pasó a `useParams()` como las otras fichas.
