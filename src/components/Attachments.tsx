@@ -98,11 +98,14 @@ export function AttachmentList({ kind, id, editable }: { kind: ParentKind; id: s
               openAttachment(a);
             }}
           >
-            📎 {a.name}
+            <span aria-hidden="true">📎</span> {a.name}
           </a>
           {editable && (
             <a
               href="#"
+              role="button"
+              aria-label={`Quitar adjunto ${a.name}`}
+              title={`Quitar ${a.name}`}
               style={{ color: 'var(--r)' }}
               onClick={(e) => {
                 e.preventDefault();
@@ -115,7 +118,7 @@ export function AttachmentList({ kind, id, editable }: { kind: ParentKind; id: s
                 });
               }}
             >
-              ✕{' '}
+              <span aria-hidden="true">✕</span>{' '}
             </a>
           )}
         </span>

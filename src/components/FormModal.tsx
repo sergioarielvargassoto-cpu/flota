@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AttachmentList, type ParentKind } from './Attachments';
 
 export type Field = {
@@ -38,6 +38,8 @@ export function FormModal({
   const [busy, setBusy] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<string | null>(null);
+  // Evita el doble envío aunque el estado `busy` todavía no se haya pintado.
+  const enCurso = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose();
     window.addEventListener('keydown', onKey);
@@ -72,11 +74,16 @@ export function FormModal({
     const v = vals[f.k];
     const id = 'f_' + f.k;
     const hasError = errorField === f.k;
-    const borderStyle = hasError ? { borderColor: 'var(--r)' } : {};
+    // aria-invalid pinta el borde de error (globals.css) y lo anuncia; el mensaje queda asociado con aria-describedby.
+    const a11y = {
+      'aria-invalid': hasError || undefined,
+      'aria-describedby': hasError ? id + '_err' : undefined,
+      'aria-required': f.req || undefined,
+    } as const;
 
     if (f.t === 'select')
       return (
-        <select id={id} value={v} onChange={(e) => set(f.k, e.target.value)} style={borderStyle}>
+        <select id={id} {...a11y} value={v} onChange={(e) => set(f.k, e.target.value)}>
           {f.options!.map((o) => {
             const [val, lab] = Array.isArray(o) ? o : [o, o];
             return (
@@ -88,17 +95,18 @@ export function FormModal({
         </select>
       );
     if (f.t === 'textarea')
-      return <textarea id={id} rows={3} value={v} onChange={(e) => set(f.k, e.target.value)} style={borderStyle} />;
+      return <textarea id={id} {...a11y} rows={3} value={v} onChange={(e) => set(f.k, e.target.value)} />;
     if (f.t === 'combo')
       return (
         <>
           <input
             id={id}
+            {...a11y}
             list={'dl_' + f.k}
             value={v}
             autoComplete="off"
             onChange={(e) => set(f.k, e.target.value)}
-            style={borderStyle}
+           
           />
           <datalist id={'dl_' + f.k}>
             {(f.options ?? []).map((o) => (
@@ -110,11 +118,13 @@ export function FormModal({
     return (
       <input
         id={id}
+        {...a11y}
         type={f.t ?? 'text'}
+        inputMode={f.t === 'number' ? 'decimal' : undefined}
         step={f.step}
         value={v}
         onChange={(e) => set(f.k, e.target.value)}
-        style={borderStyle}
+       
       />
     );
   };
@@ -126,10 +136,13 @@ export function FormModal({
         <form
           onSubmit={async (e) => {
             e.preventDefault();
+            if (enCurso.current) return;
             for (const f of fields) {
               if (f.req && !String(vals[f.k]).trim()) {
-                setFieldError('Este campo es requerido');
+                setFieldError(`Completá «${f.l}»: es obligatorio.`);
                 setErrorField(f.k);
+                // mover el foco al primer campo con error
+                requestAnimationFrame(() => document.getElementById('f_' + f.k)?.focus());
                 return;
               }
             }
@@ -139,6 +152,7 @@ export function FormModal({
               const raw = String(vals[f.k]).trim();
               out[f.k] = raw === '' ? null : f.t === 'number' ? Number(raw) : raw;
             }
+            enCurso.current = true;
             setBusy(true);
             try {
               await onSave(out, staged);
@@ -150,15 +164,11 @@ export function FormModal({
               );
               setErrorField('_form');
             } finally {
+              enCurso.current = false;
               setBusy(false);
             }
           }}
         >
-          {fieldError && errorField !== '_form' && (
-            <div role="alert" style={{ color: 'var(--r)', fontSize: '12px', marginBottom: '12px' }}>
-              ⚠ {fieldError}
-            </div>
-          )}
           {rows.map((r, i) => {
             const cells = r.map((f) => (
               <div className="fg" key={f.k}>
@@ -167,6 +177,11 @@ export function FormModal({
                   {f.req ? ' *' : ''}
                 </label>
                 {input(f)}
+                {fieldError && errorField === f.k && (
+                  <div className="fg-err" id={'f_' + f.k + '_err'} role="alert">
+                    {fieldError}
+                  </div>
+                )}
               </div>
             ));
             return r.length === 2 ? (
@@ -178,24 +193,15 @@ export function FormModal({
             );
           })}
           {fieldError && errorField === '_form' && (
-            <div
-              style={{
-                color: 'var(--r)',
-                fontSize: '13px',
-                marginTop: '12px',
-                padding: '8px',
-                backgroundColor: 'rgba(239,68,68,0.1)',
-                borderRadius: '6px',
-                borderLeft: '3px solid var(--r)',
-              }}
-            >
+            <div className="err" role="alert">
               {fieldError}
             </div>
           )}
           {files && (
             <div className="fg">
-              <label>Adjuntar copia (foto / PDF, máx. 10 MB)</label>
+              <label htmlFor="fm-files">Adjuntar copia (foto / PDF, máx. 10 MB)</label>
               <input
+                id="fm-files"
                 type="file"
                 multiple
                 onChange={(e) => {
@@ -208,16 +214,14 @@ export function FormModal({
                 {staged.map((f, i) => (
                   <span key={i}>
                     📎 {f.name}{' '}
-                    <a
-                      href="#"
-                      style={{ color: 'var(--r)' }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setStaged(staged.filter((_, j) => j !== i));
-                      }}
+                    <button
+                      type="button"
+                      className="b3 sm"
+                      aria-label={`Quitar ${f.name}`}
+                      onClick={() => setStaged(staged.filter((_, j) => j !== i))}
                     >
-                      ✕{' '}
-                    </a>
+                      ✕
+                    </button>
                   </span>
                 ))}
               </div>

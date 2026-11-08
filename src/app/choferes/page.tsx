@@ -17,7 +17,7 @@ export default function Choferes() {
       <div className="bar">
         <h2 style={{ margin: 0 }}>Choferes ({drivers.length})</h2>
         <span className="sp" />
-        <input placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="search" aria-label="Buscar chofer por nombre o DNI" placeholder="Nombre o DNI…" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="b1" onClick={() => open((c) => <DriverForm onClose={c} />)}>
           + Chofer
         </button>
@@ -25,13 +25,14 @@ export default function Choferes() {
       {l.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Choferes y estado de su documentación</caption>
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>DNI</th>
-                <th>Teléfono</th>
-                <th>Vehículo</th>
-                <th>Documentación</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">DNI</th>
+                <th scope="col">Teléfono</th>
+                <th scope="col">Vehículo</th>
+                <th scope="col">Documentación</th>
               </tr>
             </thead>
             <tbody>
@@ -63,7 +64,11 @@ export default function Choferes() {
           </table>
         </div>
       ) : (
-        <div className="empty">Todavía no hay choferes. Tocá “+ Chofer”.</div>
+        <div className="empty">
+          {drivers.length
+            ? 'Ningún chofer coincide con la búsqueda. Probá con otro nombre o DNI.'
+            : 'Todavía no cargaste choferes. Usá «+ Chofer» para agregar el primero.'}
+        </div>
       )}
       {el}
     </>

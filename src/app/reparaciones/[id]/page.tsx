@@ -13,12 +13,21 @@ export default function RepairDetail() {
   const { repairs, vehicles, workshops, repair_history, remove, reload } = useData();
   const { el, open } = useModal();
   const repair = repairs.find((r) => r.id === id);
-  if (!repair) return <div style={{ padding: '20px' }}>Reparación no encontrada</div>;
+  if (!repair)
+    return (
+      <div className="empty">
+        Reparación no encontrada.{' '}
+        <Link className="lk" href="/reparaciones">
+          Volver a Reparaciones
+        </Link>
+      </div>
+    );
   const vehicle = vehicles.find((v) => v.id === repair.vehicle_id);
   const workshop = workshops.find((w) => w.id === repair.workshop_id);
   const history = repair_history.filter((h) => h.repair_id === repair.id);
 
-  const statusColor: Record<string, string> = { Pendiente: '#ff9800', 'En curso': '#2196f3', Finalizada: '#4caf50' };
+  // Estado → insignia de la paleta (igual que en la tabla de reparaciones)
+  const statusBadge: Record<string, string> = { Pendiente: 'critico', 'En curso': 'urgente', Finalizada: 'ok' };
 
   return (
     <>
@@ -26,9 +35,9 @@ export default function RepairDetail() {
         <Link
           className="b2 sm"
           href={`/vehiculos/${vehicle?.id}`}
-          style={{ padding: '8px 14px', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}
+          style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
         >
-          ‹ {vehicle?.plate}
+          <span aria-hidden="true">‹</span> {vehicle?.plate}
         </Link>
         <h2 style={{ margin: 0 }}>Reparación {fd(repair.date)}</h2>
         <span className="sp" />
@@ -36,6 +45,7 @@ export default function RepairDetail() {
           Editar
         </button>
         <button
+          className="b3"
           onClick={() => {
             if (confirm('¿Eliminar esta reparación?'))
               guard(async () => {
@@ -43,22 +53,16 @@ export default function RepairDetail() {
                 router.push(`/vehiculos/${vehicle?.id}`);
               });
           }}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#f44336',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
         >
           Eliminar
         </button>
       </div>
 
-      <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h3>Información</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        <section className="card" aria-labelledby="rep-info">
+          <h3 id="rep-info" style={{ marginTop: 0 }}>
+            Información
+          </h3>
           <p>
             <b>Vehículo:</b> {vehicle?.plate || '—'}
           </p>
@@ -72,28 +76,19 @@ export default function RepairDetail() {
             <b>Descripción:</b> {repair.description}
           </p>
           <p>
-            <b>Km:</b> {num(repair.km)}
+            <b>Km:</b> <span className="num">{num(repair.km)}</span>
           </p>
           <p>
-            <b>Costo:</b> {money(repair.cost)}
+            <b>Costo:</b> <span className="num">{money(repair.cost)}</span>
           </p>
           <p>
             <b>Factura/Remito:</b> {repair.invoice || '—'}
           </p>
           <p>
             <b>Estado:</b>{' '}
-            <span
-              style={{
-                padding: '4px 8px',
-                borderRadius: '4px',
-                backgroundColor: statusColor[repair.status],
-                color: '#fff',
-              }}
-            >
-              {repair.status}
-            </span>
+            <span className={'bd ' + (statusBadge[repair.status] ?? 'nd')}>{repair.status}</span>
           </p>
-        </div>
+        </section>
       </div>
 
       <RepairHistoryTimeline history={history} />

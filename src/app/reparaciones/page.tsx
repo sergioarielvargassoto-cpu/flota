@@ -17,7 +17,7 @@ export default function Reparaciones() {
       <div className="bar">
         <h2 style={{ margin: 0 }}>Reparaciones</h2>
         <span className="sp" />
-        <select value={fv} onChange={(e) => setFv(e.target.value)}>
+        <select aria-label="Filtrar por vehículo" value={fv} onChange={(e) => setFv(e.target.value)}>
           <option value="">Todos los vehículos</option>
           {vehicles.map((v) => (
             <option key={v.id} value={v.id}>

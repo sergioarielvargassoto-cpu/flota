@@ -54,7 +54,7 @@ export default function Combustible() {
       <div className="bar">
         <h2 style={{ margin: 0 }}>Combustible (YPF en Ruta)</h2>
         <span className="sp" />
-        <select value={fv} onChange={(e) => setFv(e.target.value)}>
+        <select aria-label="Filtrar por vehículo" value={fv} onChange={(e) => setFv(e.target.value)}>
           <option value="">Todos los vehículos</option>
           {vehicles.map((v) => (
             <option key={v.id} value={v.id}>
@@ -62,16 +62,16 @@ export default function Combustible() {
             </option>
           ))}
         </select>
-        <select value={fp} onChange={(e) => setFp(e.target.value)}>
+        <select aria-label="Filtrar por provincia" value={fp} onChange={(e) => setFp(e.target.value)}>
           <option value="">Todas las provincias</option>
           <option value="Corrientes">Corrientes</option>
           <option value="Formosa">Formosa</option>
           <option value="Misiones">Misiones</option>
           <option value="Chaco">Chaco</option>
         </select>
-        <input type="month" value={fm} onChange={(e) => setFm(e.target.value)} title="Filtrar por mes" />
+        <input type="month" aria-label="Filtrar por mes" value={fm} onChange={(e) => setFm(e.target.value)} title="Filtrar por mes" />
         <button className="b2" onClick={async () => setRows(await pickSheet())}>
-          ⬆ Importar Excel YPF
+          <span aria-hidden="true">⬆</span> Importar Excel YPF
         </button>
         <button className="b1" onClick={() => open((c) => <FuelForm onClose={c} />)}>
           + Carga
@@ -100,27 +100,49 @@ export default function Combustible() {
           <h3>Resumen por vehículo</h3>
           <div className="tw">
             <table>
+              <caption className="sr-only">
+                Resumen de combustible por vehículo, de mayor a menor importe. Elegí una fila para filtrar por ese vehículo.
+              </caption>
               <thead>
                 <tr>
-                  <th>Vehículo</th>
-                  <th>Cargas</th>
-                  <th>Litros</th>
-                  <th>Importe s/IVA</th>
-                  <th>$/litro</th>
-                  <th>Consumo (por odómetro)</th>
+                  <th scope="col">Vehículo</th>
+                  <th scope="col" className="r">
+                    Cargas
+                  </th>
+                  <th scope="col" className="r">
+                    Litros
+                  </th>
+                  <th scope="col" className="r">
+                    Importe s/IVA
+                  </th>
+                  <th scope="col" className="r">
+                    $/litro
+                  </th>
+                  <th scope="col" className="r">
+                    Consumo (por odómetro)
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {sum.map((x) => (
-                  <tr key={x.v?.id ?? 'unknown'} className="cl" onClick={() => x.v && setFv(x.v.id)}>
-                    <td>
-                      <b>{x.v?.plate ?? '—'}</b>
-                    </td>
-                    <td>{x.n}</td>
-                    <td>{num(Math.round(x.lit))}</td>
-                    <td>{money(Math.round(x.imp))}</td>
-                    <td>{x.lit ? money(Math.round(x.imp / x.lit)) : '—'}</td>
-                    <td>{x.cons}</td>
+                  <tr
+                    key={x.v?.id ?? 'unknown'}
+                    className="cl"
+                    tabIndex={0}
+                    onClick={() => x.v && setFv(x.v.id)}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && x.v) {
+                        e.preventDefault();
+                        setFv(x.v.id);
+                      }
+                    }}
+                  >
+                    <th scope="row">{x.v?.plate ?? '—'}</th>
+                    <td className="r">{x.n}</td>
+                    <td className="r">{num(Math.round(x.lit))}</td>
+                    <td className="r">{money(Math.round(x.imp))}</td>
+                    <td className="r">{x.lit ? money(Math.round(x.imp / x.lit)) : '—'}</td>
+                    <td className="r">{x.cons}</td>
                   </tr>
                 ))}
               </tbody>
@@ -135,17 +157,26 @@ export default function Combustible() {
           <h3>Detalle de cargas</h3>
           <div className="tw">
             <table>
+              <caption className="sr-only">Detalle de cargas de combustible, de la más reciente a la más antigua (hasta 400)</caption>
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Vehículo</th>
-                  <th>Conductor</th>
-                  <th>Producto</th>
-                  <th>Litros</th>
-                  <th>Importe s/IVA</th>
-                  <th>Km</th>
-                  <th>Establecimiento</th>
-                  <th></th>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">Vehículo</th>
+                  <th scope="col">Conductor</th>
+                  <th scope="col">Producto</th>
+                  <th scope="col" className="r">
+                    Litros
+                  </th>
+                  <th scope="col" className="r">
+                    Importe s/IVA
+                  </th>
+                  <th scope="col" className="r">
+                    Km
+                  </th>
+                  <th scope="col">Establecimiento</th>
+                  <th scope="col">
+                    <span className="sr-only">Acciones</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -158,14 +189,15 @@ export default function Combustible() {
                       <td>{vehicles.find((v) => v.id === f.vehicle_id)?.plate ?? '—'}</td>
                       <td>{f.driver_name}</td>
                       <td>{f.product}</td>
-                      <td>{num(f.liters)}</td>
-                      <td>{money(f.amount)}</td>
-                      <td>
+                      <td className="r">{num(f.liters)}</td>
+                      <td className="r">{money(f.amount)}</td>
+                      <td className="r">
                         {f.km !== null ? (
                           num(f.km)
                         ) : f.km_raw !== null && isFuel(f.product) ? (
-                          <span title="Odómetro informado y descartado por inconsistente" style={{ color: 'var(--o)' }}>
-                            ⚠ {num(f.km_raw)}
+                          <span className="bd critico" title="Odómetro informado y descartado por inconsistente">
+                            <span aria-hidden="true">⚠</span> {num(f.km_raw)}
+                            <span className="sr-only"> (odómetro descartado por inconsistente)</span>
                           </span>
                         ) : (
                           '—'
@@ -178,6 +210,7 @@ export default function Combustible() {
                         </button>{' '}
                         <button
                           className="b3 sm"
+                          aria-label={`Eliminar carga del ${fd(f.date)}`}
                           onClick={() => {
                             if (confirm('¿Eliminar carga?')) guard(() => remove('fuel_loads', f.id));
                           }}
@@ -192,7 +225,11 @@ export default function Combustible() {
           </div>
         </>
       ) : (
-        <div className="empty">Sin cargas. Importá el Excel de YPF en Ruta o cargá una a mano.</div>
+        <div className="empty">
+          {fuel_loads.length
+            ? 'No hay cargas para los filtros elegidos. Probá con otro vehículo, provincia o mes.'
+            : 'Todavía no hay cargas de combustible. Usá «Importar Excel YPF» o «+ Carga» para cargar una a mano.'}
+        </div>
       )}
       {rows && (
         <ImportDialog

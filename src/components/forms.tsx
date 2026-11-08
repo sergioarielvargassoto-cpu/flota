@@ -465,15 +465,15 @@ export function KmUpdateForm({ vehicle, onClose }: { vehicle: Vehicle; onClose: 
 
   return (
     <div className="ov">
-      <div className="md" style={{ maxWidth: '500px' }}>
-        <h3>📊 Actualizar Kilometraje - {vehicle.plate}</h3>
+      <div className="md" style={{ maxWidth: '500px' }} role="dialog" aria-modal="true" aria-labelledby="km-upd-title">
+        <h3 id="km-upd-title">Actualizar kilometraje · {vehicle.plate}</h3>
         <div
           style={{
-            marginBottom: '16px',
-            padding: '12px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '6px',
-            fontSize: '14px',
+            marginBottom: 16,
+            padding: 12,
+            background: 'var(--an-wash)',
+            border: '1px solid var(--an-border)',
+            borderRadius: 10,
           }}
         >
           <p style={{ margin: '0 0 8px 0' }}>
@@ -524,20 +524,34 @@ Km actual del vehículo: ${kmNow !== null && kmNow !== undefined ? kmNow.toLocal
           }}
         >
           {twinPlates.length > 0 && (
-            <div role="note" style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 8, marginBottom: 12, fontSize: 13 }}>
-              <b>⚠ No mezclar datos:</b> {vehicle.plate} se puede confundir con <b>{twinPlates.join(', ')}</b>. Verificá que el km que vas a cargar sea realmente de {vehicle.plate}.
+            <div role="note" className="warn" style={{ fontSize: 13 }}>
+              <b>
+                <span aria-hidden="true">⚠</span> No mezclar datos:
+              </b> {vehicle.plate} se puede confundir con <b>{twinPlates.join(', ')}</b>. Verificá que el km que vas a cargar sea realmente de {vehicle.plate}.
             </div>
           )}
           <div className="fg">
             <label htmlFor="km_date_input">Fecha en que se leyó el km del tablero *</label>
-            <input id="km_date_input" type="date" value={readDate} max={todayStr()} onChange={(e) => setReadDate(e.target.value)} />
-            <small className="muted">Si lo leíste hace unos días, poné ese día: el GPS posterior se suma desde esa fecha.</small>
+            <input
+              id="km_date_input"
+              type="date"
+              value={readDate}
+              max={todayStr()}
+              required
+              aria-describedby="km_date_hint"
+              onChange={(e) => setReadDate(e.target.value)}
+            />
+            <div id="km_date_hint" className="fg-hint">
+              Si lo leíste hace unos días, poné ese día: el GPS posterior se suma desde esa fecha.
+            </div>
           </div>
           <div className="fg">
             <label htmlFor="km_input">Nuevo kilometraje *</label>
             <input
               id="km_input"
               type="number"
+              inputMode="numeric"
+              aria-describedby={kmChange !== null ? 'km_change' : undefined}
               value={newKm}
               onChange={(e) => setNewKm(e.target.value)}
               placeholder="Ej: 125000"
@@ -547,19 +561,21 @@ Km actual del vehículo: ${kmNow !== null && kmNow !== undefined ? kmNow.toLocal
 
           {kmChange !== null && (
             <div
+              id="km_change"
+              aria-live="polite"
               style={{
-                marginBottom: '16px',
-                padding: '12px',
-                backgroundColor: kmChange > 0 ? '#e8f5e9' : '#ffebee',
-                borderRadius: '6px',
-                fontSize: '14px',
+                marginBottom: 16,
+                padding: 12,
+                background: 'var(--an-wash)',
+                border: '1px solid var(--an-border)',
+                borderRadius: 10,
               }}
             >
               <p style={{ margin: '0' }}>
                 <b>Cambio respecto de la última lectura real ({lastR ? lastR.date.split('-').reverse().join('/') : ''}, {lastR?.km.toLocaleString('es-AR')} km):</b>{' '}
-                <span style={{ color: kmChange > 0 ? '#2e7d32' : '#c62828' }}>
+                <span className={'bd ' + (kmChange > 0 ? 'ok' : 'vencido')}>
                   {kmChange > 0 ? '+' : ''}
-                  {kmChange.toLocaleString()} km
+                  {kmChange.toLocaleString()} km{kmChange > 0 ? '' : ' (no sube)'}
                 </span>
               </p>
             </div>

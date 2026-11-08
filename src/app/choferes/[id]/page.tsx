@@ -30,9 +30,9 @@ export default function ChoferDetalle() {
         <Link
           className="b2 sm"
           href="/choferes"
-          style={{ padding: '8px 14px', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}
+          style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
         >
-          ‹ Choferes
+          <span aria-hidden="true">‹</span> Choferes
         </Link>
         <h2 style={{ margin: 0 }}>{d.name}</h2>
         <span className="sp" />

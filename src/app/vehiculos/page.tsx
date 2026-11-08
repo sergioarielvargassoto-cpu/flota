@@ -43,15 +43,18 @@ export default function Vehiculos() {
       {l.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Vehículos de la flota, de la patente más nueva a la más vieja</caption>
             <thead>
               <tr>
-                <th>Patente</th>
-                <th>Tipo</th>
-                <th>Marca / modelo</th>
-                <th>Chofer</th>
-                <th>Km</th>
-                <th>Estado</th>
-                <th>Documentación</th>
+                <th scope="col">Patente</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Marca / modelo</th>
+                <th scope="col">Chofer</th>
+                <th scope="col" className="r">
+                  Km
+                </th>
+                <th scope="col">Estado</th>
+                <th scope="col">Documentación</th>
               </tr>
             </thead>
             <tbody>
@@ -72,7 +75,7 @@ export default function Vehiculos() {
                       {v.brand} {v.model} {v.year}
                     </td>
                     <td>{drivers.find((d) => d.id === v.driver_id)?.name ?? '—'}</td>
-                    <td>{num(v.km)}</td>
+                    <td className="r">{num(v.km)}</td>
                     <td>{v.status}</td>
                     <td>{w ? <Badge status={w}>{STATUS_LABEL[w]}</Badge> : <Badge status="nd">Sin cargar</Badge>}</td>
                   </tr>
@@ -82,7 +85,11 @@ export default function Vehiculos() {
           </table>
         </div>
       ) : (
-        <div className="empty">Todavía no hay vehículos. Tocá “+ Vehículo”.</div>
+        <div className="empty">
+          {vehicles.length
+            ? 'Ningún vehículo coincide con la búsqueda. Probá con otra patente, marca o modelo.'
+            : 'Todavía no cargaste vehículos. Usá «+ Vehículo» para agregar el primero.'}
+        </div>
       )}
       {el}
     </>

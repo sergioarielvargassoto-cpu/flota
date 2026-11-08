@@ -296,7 +296,8 @@ export default function AuditoriaKm() {
 
   return (
     <>
-      <div style={{ margin: '0 0 16px', padding: 12, borderRadius: 8, background: '#e3f2fd', fontSize: 14 }}>
+      <h2>Auditoría de kilometraje</h2>
+      <div className="card" style={{ margin: '0 0 16px', background: 'var(--an-wash)' }}>
         <b>Cómo se cuida el kilometraje:</b> lo más profesional es que el responsable (Ariel) anote a mano, cada cierto
         tiempo (por ejemplo una vez al mes, con foto del tablero), el km real de cada vehículo. Esa lectura manda; el GPS
         completa los días entre lecturas y sirve para <b>auditar</b> que lo declarado sea coherente.
@@ -308,7 +309,9 @@ export default function AuditoriaKm() {
 
       {twins.length > 0 && (
         <>
-          <h3>⚠ Vehículos que no hay que mezclar</h3>
+          <h3>
+            <span aria-hidden="true">⚠</span> Vehículos que no hay que mezclar
+          </h3>
           <p className="muted">
             Pares de vehículos fáciles de confundir al cargar datos (patentes parecidas, o del mismo estilo y con km parecidos). Si una carga, un service o una
             reparación se carga en el vehículo equivocado, los km y los consumos de los dos quedan mal. Con YPF en Ruta cada tarjeta está asociada a un vehículo,
@@ -316,7 +319,7 @@ export default function AuditoriaKm() {
           </p>
           <div style={{ display: 'grid', gap: 10 }}>
             {twins.map((t) => (
-              <div key={t.p.a + t.p.b} style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 10, padding: 12, fontSize: 13 }}>
+              <div key={t.p.a + t.p.b} className="warn" style={{ margin: 0, fontSize: 13 }}>
                 <b>
                   {t.p.a} ↔ {t.p.b}
                   {t.p.byOwner ? ' · indicado por el responsable' : ''}
@@ -334,7 +337,9 @@ export default function AuditoriaKm() {
                 <div style={{ marginTop: 6 }}>
                   <b>¿Hay datos cargados a uno que también encajan con el otro?</b>
                   {t.aInB.length + t.bInA.length === 0 ? (
-                    <div>✔ No: ningún dato de uno encaja con la trayectoria del otro.</div>
+                    <div>
+                      <span aria-hidden="true">✔</span> No: ningún dato de uno encaja con la trayectoria del otro.
+                    </div>
                   ) : (
                     <ul style={{ margin: '4px 0 0 18px' }}>
                       {t.aInB.map((x, i) => (
@@ -356,7 +361,7 @@ export default function AuditoriaKm() {
         </>
       )}
 
-      <h3>🧭 Lecturas que no encajan con las demás del vehículo</h3>
+      <h3>Lecturas que no encajan con las demás del vehículo</h3>
       <p className="muted">
         Cada lectura (de estación, cargada a mano, de mantenimiento o de reparación) se contrasta con hasta 3 anteriores y 3 posteriores, y con el GPS.
         <b> Atípica</b>: no concuerda con ninguna. <b>Dudosa</b>: concuerda con menos de la mitad. Se aceptan diferencias de hasta ±500 km por registro de taller o carga manual
@@ -365,14 +370,17 @@ export default function AuditoriaKm() {
       {offTrack.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Lecturas de km atípicas o dudosas frente a las demás del vehículo</caption>
             <thead>
               <tr>
-                <th>Vehículo</th>
-                <th>Fecha</th>
-                <th>Km cargado</th>
-                <th>Fuente</th>
-                <th>Resultado</th>
-                <th>Lo esperable en esa fecha</th>
+                <th scope="col">Vehículo</th>
+                <th scope="col">Fecha</th>
+                <th scope="col" className="r">
+                  Km cargado
+                </th>
+                <th scope="col">Fuente</th>
+                <th scope="col">Resultado</th>
+                <th scope="col">Lo esperable en esa fecha</th>
               </tr>
             </thead>
             <tbody>
@@ -382,13 +390,13 @@ export default function AuditoriaKm() {
                     <b>{o.plate}</b>
                   </td>
                   <td>{fd(o.date)}</td>
-                  <td>
+                  <td className="r">
                     <b>{num(o.km)}</b>
                   </td>
                   <td>{o.src}</td>
                   <td>
                     <Badge status="vencido">
-                      {o.level === 'atípica' ? '⚠ Atípica' : '⚠ Dudosa'} ({o.agree}/{o.of})
+                      <span aria-hidden="true">⚠</span> {o.level === 'atípica' ? 'Atípica' : 'Dudosa'} ({o.agree}/{o.of})
                     </Badge>
                   </td>
                   <td>
@@ -401,25 +409,30 @@ export default function AuditoriaKm() {
           </table>
         </div>
       ) : (
-        <div className="empty">✔ Todas las lecturas encajan con las de su vehículo.</div>
+        <div className="empty">
+          <span aria-hidden="true">✔</span> Todas las lecturas encajan con las de su vehículo. No hay nada que corregir.
+        </div>
       )}
       {offTrack.length > 0 && (
         <>
-          <h4 style={{ margin: '16px 0 8px' }}>🔎 Detalle de cada caso: qué vio el sistema, qué pudo pasar y qué hacer</h4>
+          <h4 style={{ margin: '16px 0 8px' }}>Detalle de cada caso: qué vio el sistema, qué pudo pasar y qué hacer</h4>
           <p className="muted">
             Las causas son <b>hipótesis</b> ordenadas según lo que muestran los datos (números redondos, dígitos de más o de menos, fecha equivocada,
             km “programado” del service). Se confirman con el comprobante original. Esta explicación se genera sola para cualquier caso parecido en el futuro.
           </p>
           <div style={{ display: 'grid', gap: 12 }}>
             {offTrack.map((o, i) => (
-              <div key={i} style={{ background: '#fff', border: '1px solid var(--b)', borderRadius: 10, padding: 14 }}>
+              <div key={i} className="card" style={{ padding: 14 }}>
                 <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                  <Link href={`/vehiculos/${o.vehicleId}`}>{o.plate}</Link> · {o.level === 'atípica' ? '⚠ Atípica' : '⚠ Dudosa'} · {num(o.km)} km el {fd(o.date)} ({o.src}
+                  <Link className="lk" href={`/vehiculos/${o.vehicleId}`}>
+                    {o.plate}
+                  </Link>{' '}
+                  · <span className="bd vencido">{o.level === 'atípica' ? 'Atípica' : 'Dudosa'}</span> · {num(o.km)} km el {fd(o.date)} ({o.src}
                   {o.label ? `: ${o.label}` : ''})
                 </div>
                 {o.note && (
-                  <div style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 10, margin: '6px 0', fontSize: 13 }}>
-                    <b>📝 Aclaración del {o.note.by.toLowerCase()} ({fd(o.note.on)}):</b> {o.note.note}
+                  <div className="warn" style={{ margin: '6px 0', fontSize: 13 }}>
+                    <b>Aclaración del {o.note.by.toLowerCase()} ({fd(o.note.on)}):</b> {o.note.note}
                   </div>
                 )}
                 <ExplainView e={o.explain} />
@@ -429,7 +442,7 @@ export default function AuditoriaKm() {
         </>
       )}
 
-      <h3>🧾 Casos del mes explicados ({mKey ? monthLabel(mKey) : '—'})</h3>
+      <h3>Casos del mes explicados ({mKey ? monthLabel(mKey) : '—'})</h3>
       <p className="muted">
         Cada anomalía que detecta el sistema trae su explicación automática: qué vio, qué pudo haber pasado, qué hacer y qué efecto tiene. Funciona para cualquier caso
         nuevo del mismo tipo (el mes se elige más abajo, en “Auditoría entre cargas”). Las causas son hipótesis a confirmar con el comprobante original.
@@ -447,11 +460,11 @@ export default function AuditoriaKm() {
           {sec.items.length ? (
             <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
               {sec.items.map((it) => (
-                <details key={it.k} style={{ background: '#fff', border: '1px solid var(--b)', borderRadius: 8, padding: '8px 12px' }}>
+                <details key={it.k} className="card" style={{ padding: '8px 12px' }}>
                   <summary style={{ cursor: 'pointer' }}>{it.head}</summary>
                   {it.note && (
-                    <div style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 10, margin: '8px 0 0', fontSize: 13 }}>
-                      <b>📝 Aclaración del {it.note.by.toLowerCase()} ({fd(it.note.on)}):</b> {it.note.note}
+                    <div className="warn" style={{ margin: '8px 0 0', fontSize: 13 }}>
+                      <b>Aclaración del {it.note.by.toLowerCase()} ({fd(it.note.on)}):</b> {it.note.note}
                     </div>
                   )}
                   <ExplainView e={it.e} />
@@ -459,24 +472,31 @@ export default function AuditoriaKm() {
               ))}
             </div>
           ) : (
-            <div className="empty">✔ Sin casos de este tipo.</div>
+            <div className="empty">
+              <span aria-hidden="true">✔</span> Sin casos de este tipo en el mes.
+            </div>
           )}
         </details>
       ))}
 
-      <h3>⚠ Lecturas que no coinciden con el GPS</h3>
+      <h3>Lecturas que no coinciden con el GPS</h3>
       {flags.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Lecturas de tablero que quedan fuera del rango medido por el GPS</caption>
             <thead>
               <tr>
-                <th>Vehículo</th>
-                <th>Lectura anterior</th>
-                <th>Lectura nueva</th>
-                <th>GPS máx. del tramo</th>
-                <th>Límite del rango</th>
-                <th>Fuera del rango</th>
-                <th>Origen</th>
+                <th scope="col">Vehículo</th>
+                <th scope="col">Lectura anterior</th>
+                <th scope="col">Lectura nueva</th>
+                <th scope="col" className="r">
+                  GPS máx. del tramo
+                </th>
+                <th scope="col" className="r">
+                  Límite del rango
+                </th>
+                <th scope="col">Fuera del rango</th>
+                <th scope="col">Origen</th>
               </tr>
             </thead>
             <tbody>
@@ -491,8 +511,8 @@ export default function AuditoriaKm() {
                   <td>
                     {fd(f.to.date)} · <b>{num(f.to.km)} km</b>
                   </td>
-                  <td>{num(f.gps)} km</td>
-                  <td>{num(f.expected)} km</td>
+                  <td className="r">{num(f.gps)} km</td>
+                  <td className="r">{num(f.expected)} km</td>
                   <td>
                     <Badge status="vencido">
                       {f.diff > 0 ? '+' : ''}
@@ -508,12 +528,16 @@ export default function AuditoriaKm() {
           </table>
         </div>
       ) : (
-        <div className="empty">✔ Todas las lecturas auditables coinciden con el GPS.</div>
+        <div className="empty">
+          <span aria-hidden="true">✔</span> Todas las lecturas auditables coinciden con el GPS.
+        </div>
       )}
       {discarded > 0 && (
         <p className="muted">
-          ℹ {discarded} lecturas de estaciones fueron descartadas por ser datos inválidos (por ejemplo, un km tipeado de cualquier manera).
-          No se usan en ningún cálculo y no se muestran acá: están detalladas en el <Link href="/informe">Informe de gestión</Link>, sección
+          <span aria-hidden="true">ℹ</span> {discarded} lecturas de estaciones fueron descartadas por ser datos inválidos (por ejemplo, un km tipeado de cualquier manera).
+          No se usan en ningún cálculo y no se muestran acá: están detalladas en el{' '}
+          <Link className="lk" href="/informe">
+            Informe de gestión</Link>, sección
           “Calidad de los km declarados en las estaciones”.
         </p>
       )}
@@ -524,7 +548,7 @@ export default function AuditoriaKm() {
       </p>
 
 
-      <h3>⛽ Auditoría entre cargas de combustible</h3>
+      <h3>Auditoría entre cargas de combustible</h3>
       <div className="bar">
         <select value={mKey} onChange={(e) => setSelM(e.target.value)} aria-label="Mes">
           {(fuelMonths.length ? fuelMonths : [mKey]).filter(Boolean).map((m) => (
@@ -547,16 +571,28 @@ export default function AuditoriaKm() {
         return rows.length ? (
           <div className="tw">
             <table>
+              <caption className="sr-only">
+                Tramos entre cargas de combustible{mKey ? ` de ${monthLabel(mKey)}` : ''}
+                {onlyFlags ? ', solo los que tienen alertas' : ''}
+              </caption>
               <thead>
                 <tr>
-                  <th>Vehículo</th>
-                  <th>Carga anterior</th>
-                  <th>Carga</th>
-                  <th>Km odómetro</th>
-                  <th>Km GPS (mín – máx)</th>
-                  <th>Litros</th>
-                  <th>L/100 (indic.)</th>
-                  <th>Alertas</th>
+                  <th scope="col">Vehículo</th>
+                  <th scope="col">Carga anterior</th>
+                  <th scope="col">Carga</th>
+                  <th scope="col" className="r">
+                    Km odómetro
+                  </th>
+                  <th scope="col" className="r">
+                    Km GPS (mín – máx)
+                  </th>
+                  <th scope="col" className="r">
+                    Litros
+                  </th>
+                  <th scope="col" className="r">
+                    L/100 (indic.)
+                  </th>
+                  <th scope="col">Alertas</th>
                 </tr>
               </thead>
               <tbody>
@@ -572,25 +608,27 @@ export default function AuditoriaKm() {
                       {fd(p.cur.date)} · {num(p.curKm)}
                       <div className="muted">{p.cur.station}</div>
                     </td>
-                    <td>{num(p.dKm)}</td>
-                    <td>
+                    <td className="r">{num(p.dKm)}</td>
+                    <td className="r">
                       {p.gpsMin === null || p.gpsMax === null ? (
                         <span className="muted">sin GPS</span>
                       ) : (
                         `${num(Math.round(p.gpsMin))} – ${num(Math.round(p.gpsMax))}`
                       )}
                     </td>
-                    <td>{num(p.cur.liters)}</td>
-                    <td>{p.l100 === null ? '—' : p.l100.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
+                    <td className="r">{num(p.cur.liters)}</td>
+                    <td className="r">{p.l100 === null ? '—' : p.l100.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
                     <td>
                       {p.flags.length ? (
                         p.flags.map((f, k) => (
-                          <div key={k} style={{ color: '#7a4b00', fontSize: 12 }}>
-                            ⚠ {f}
+                          <div key={k} style={{ color: '#92400e', fontSize: 12, fontWeight: 600 }}>
+                            <span aria-hidden="true">⚠</span> {f}
                           </div>
                         ))
                       ) : (
-                        <span className="muted">✔</span>
+                        <span className="muted">
+                          <span aria-hidden="true">✔</span> Sin alertas
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -599,24 +637,45 @@ export default function AuditoriaKm() {
             </table>
           </div>
         ) : (
-          <div className="empty">✔ No hay tramos con alertas{mKey ? ` en ${monthLabel(mKey)}` : ''}.</div>
+          <div className="empty">
+            <span aria-hidden="true">✔</span> No hay tramos {onlyFlags ? 'con alertas' : 'entre cargas'}
+            {mKey ? ` en ${monthLabel(mKey)}` : ''}.{' '}
+            {onlyFlags ? 'Desmarcá «Solo tramos con alertas» para ver todos.' : 'Elegí otro mes o importá las cargas de YPF.'}
+          </div>
         );
       })()}
 
       <h4 style={{ margin: '18px 0 6px' }}>Consumo acumulado del mes por vehículo (método tanque a tanque)</h4>
       <div className="tw">
         <table>
+          <caption className="sr-only">
+            Consumo acumulado del mes por vehículo{mKey ? ` (${monthLabel(mKey)})` : ''}, método tanque a tanque
+          </caption>
           <thead>
             <tr>
-              <th>Vehículo</th>
-              <th>Km odómetro</th>
-              <th>Km GPS (mín – máx)</th>
-              <th>Diferencia</th>
-              <th>Litros (ventana)</th>
-              <th>L/100 km</th>
-              <th>Referencia</th>
-              <th>Desvío</th>
-              <th>Margen por tanque</th>
+              <th scope="col">Vehículo</th>
+              <th scope="col" className="r">
+                Km odómetro
+              </th>
+              <th scope="col" className="r">
+                Km GPS (mín – máx)
+              </th>
+              <th scope="col">Diferencia</th>
+              <th scope="col" className="r">
+                Litros (ventana)
+              </th>
+              <th scope="col" className="r">
+                L/100 km
+              </th>
+              <th scope="col" className="r">
+                Referencia
+              </th>
+              <th scope="col" className="r">
+                Desvío
+              </th>
+              <th scope="col" className="r">
+                Margen por tanque
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -627,29 +686,43 @@ export default function AuditoriaKm() {
                   <td>
                     <b>{w.v.plate}</b>
                   </td>
-                  <td>{w.odoKm === null ? '—' : num(w.odoKm)}</td>
-                  <td>
+                  <td className="r">{w.odoKm === null ? '—' : num(w.odoKm)}</td>
+                  <td className="r">
                     {w.hasGps ? (
                       w.gpsWinMin === null || w.gpsWinMax === null ? '—' : `${num(Math.round(w.gpsWinMin))} – ${num(Math.round(w.gpsWinMax))}`
                     ) : (
                       <span className="muted">sin GPS</span>
                     )}
                   </td>
-                  <td>{w.gpsVsOdo === null ? '—' : w.gpsVsOdo === 0 ? '✔ dentro del rango' : `⚠ ${num(w.gpsVsOdo)} km fuera`}</td>
-                  <td>{w.winLiters === null ? '—' : num(Math.round(w.winLiters))}</td>
-                  <td>{w.l100 === null ? '—' : w.l100.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
-                  <td>{w.l100Ref === null ? '—' : w.l100Ref.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
                   <td>
+                    {w.gpsVsOdo === null ? (
+                      '—'
+                    ) : w.gpsVsOdo === 0 ? (
+                      <span className="bd ok">Dentro del rango</span>
+                    ) : (
+                      <span className="bd vencido">{num(w.gpsVsOdo)} km fuera</span>
+                    )}
+                  </td>
+                  <td className="r">{w.winLiters === null ? '—' : num(Math.round(w.winLiters))}</td>
+                  <td className="r">{w.l100 === null ? '—' : w.l100.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
+                  <td className="r">{w.l100Ref === null ? '—' : w.l100Ref.toLocaleString('es-AR', { maximumFractionDigits: 1 })}</td>
+                  <td className="r">
                     {w.l100Dev === null ? (
                       '—'
-                    ) : (
-                      <b style={{ color: w.l100Signif ? '#a32424' : '#52514e' }}>
+                    ) : w.l100Signif ? (
+                      <span className="bd vencido">
                         {w.l100Dev > 0 ? '+' : ''}
-                        {Math.round(w.l100Dev)} %{w.l100Signif ? ' ⚠' : ''}
+                        {Math.round(w.l100Dev)} % <span aria-hidden="true">⚠</span>
+                        <span className="sr-only"> (desvío significativo)</span>
+                      </span>
+                    ) : (
+                      <b className="an-ink-2">
+                        {w.l100Dev > 0 ? '+' : ''}
+                        {Math.round(w.l100Dev)} %
                       </b>
                     )}
                   </td>
-                  <td>{w.l100Band === null ? '—' : `±${w.l100Band.toLocaleString('es-AR', { maximumFractionDigits: 1 })} (tanque ~${Math.round(w.tankCap)} L)`}</td>
+                  <td className="r">{w.l100Band === null ? '—' : `±${w.l100Band.toLocaleString('es-AR', { maximumFractionDigits: 1 })} (tanque ~${Math.round(w.tankCap)} L)`}</td>
                 </tr>
               ))}
           </tbody>
@@ -660,29 +733,34 @@ export default function AuditoriaKm() {
         (capacidad del tanque ÷ km de la ventana): solo se marca ⚠ si el desvío supera el 25 % y ese margen. Un desvío marcado amerita revisar lecturas de odómetro, estado del vehículo o uso del combustible.
       </p>
 
-      <h3>🛠 Services vencidos o próximos</h3>
+      <h3>Services vencidos o próximos</h3>
       {services.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Services vencidos o próximos, del más atrasado al más lejano</caption>
             <thead>
               <tr>
-                <th>Vehículo</th>
-                <th>Km actual</th>
-                <th>Último service registrado</th>
-                <th>Estado</th>
+                <th scope="col">Vehículo</th>
+                <th scope="col" className="r">
+                  Km actual
+                </th>
+                <th scope="col" className="r">
+                  Último service registrado
+                </th>
+                <th scope="col">Estado</th>
               </tr>
             </thead>
             <tbody>
               {services.map(({ v, left }) => (
                 <tr key={v.id}>
                   <td>
-                    <Link href={`/vehiculos/${v.id}`}>
+                    <Link className="lk" href={`/vehiculos/${v.id}`}>
                       <b>{v.plate}</b>
                     </Link>{' '}
                     <span className="muted">{v.brand}</span>
                   </td>
-                  <td>{num(v.km)} km</td>
-                  <td>{num(v.last_service_km)} km</td>
+                  <td className="r">{num(v.km)} km</td>
+                  <td className="r">{num(v.last_service_km)} km</td>
                   <td>
                     <Badge status={left <= 0 ? 'vencido' : 'proximo'}>
                       {left <= 0 ? `Vencido hace ${num(-left)} km` : `Faltan ${num(left)} km`}
@@ -694,22 +772,27 @@ export default function AuditoriaKm() {
           </table>
         </div>
       ) : (
-        <div className="empty">✔ Ningún service vencido ni próximo.</div>
+        <div className="empty">
+          <span aria-hidden="true">✔</span> Ningún service vencido ni próximo.
+        </div>
       )}
       <p className="muted">
         Si un vehículo figura vencido: verificar si el service se hizo. Si se hizo, cargarlo en <b>Mantenimientos</b>{' '}
         (tipo “Service”); recién ahí se da por realizado.
       </p>
 
-      <h3>📝 Vehículos sin lectura de tablero reciente (más de {STALE_READING_DAYS} días)</h3>
+      <h3>Vehículos sin lectura de tablero reciente (más de {STALE_READING_DAYS} días)</h3>
       {stale.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Vehículos sin lectura de tablero en los últimos {STALE_READING_DAYS} días</caption>
             <thead>
               <tr>
-                <th>Vehículo</th>
-                <th>Última lectura</th>
-                <th>Hace</th>
+                <th scope="col">Vehículo</th>
+                <th scope="col">Última lectura</th>
+                <th scope="col" className="r">
+                  Hace
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -721,32 +804,35 @@ export default function AuditoriaKm() {
                   <td>
                     {s.last ? `${fd(s.last.date)} · ${num(s.last.km)} km (${SRC_LABEL[s.last.src] ?? s.last.src})` : 'Nunca'}
                   </td>
-                  <td>{s.days === null ? '—' : `${s.days} días`}</td>
+                  <td className="r">{s.days === null ? '—' : `${s.days} días`}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <div className="empty">✔ Todos los vehículos tienen una lectura reciente.</div>
+        <div className="empty">
+          <span aria-hidden="true">✔</span> Todos los vehículos tienen una lectura reciente.
+        </div>
       )}
       <p className="muted">
         Anotar el km real en Vehículos → “Actualizar km”, indicando <b>la fecha en que se leyó el tablero</b>. Queda registrado como carga manual con esa fecha.
       </p>
 
       <details style={{ marginTop: 24 }}>
-        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>📐 Parámetros y criterios de esta auditoría (y por qué)</summary>
+        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Parámetros y criterios de esta auditoría (y por qué)</summary>
         <p className="muted">
           Provisorios: salen del análisis de septiembre (un solo mes de combustible). Se recalibran con 3 o más meses de datos (ver PLAN_REANALISIS_DATOS.md).
         </p>
         <div className="tw">
           <table>
+            <caption className="sr-only">Parámetros y criterios de la auditoría de km</caption>
             <thead>
               <tr>
-                <th>Criterio</th>
-                <th>Valor</th>
-                <th>Por qué</th>
-                <th>Cuándo revisarlo</th>
+                <th scope="col">Criterio</th>
+                <th scope="col">Valor</th>
+                <th scope="col">Por qué</th>
+                <th scope="col">Cuándo revisarlo</th>
               </tr>
             </thead>
             <tbody>

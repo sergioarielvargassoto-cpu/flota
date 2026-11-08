@@ -65,9 +65,9 @@ export default function VehiculoDetalle() {
         <Link
           className="b2 sm"
           href="/vehiculos"
-          style={{ padding: '8px 14px', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}
+          style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
         >
-          ‹ Vehículos
+          <span aria-hidden="true">‹</span> Vehículos
         </Link>
         <h2 style={{ margin: 0 }}>
           {v.plate}{' '}
@@ -85,7 +85,7 @@ export default function VehiculoDetalle() {
             exportLegajo(v, { drivers, documents, repairs, maintenance, fuel_loads, trips, km_history, km_reports, infractions, fines, attachments, workshops })
           }
         >
-          📄 Exportar legajo (Excel)
+          <span aria-hidden="true">📄</span> Exportar legajo (Excel)
         </button>
         {v.status === 'Baja' ? (
           <button
@@ -154,14 +154,17 @@ export default function VehiculoDetalle() {
         )}
       </div>
       {twin.length > 0 && (
-        <div role="note" style={{ background: '#fff8e1', border: '1px solid #f1d98a', borderRadius: 8, padding: 10, margin: '0 0 12px', fontSize: 14 }}>
-          <b>⚠ No mezclar datos:</b> {v.plate} se puede confundir con <b>{twin.join(', ')}</b> (patentes parecidas o del mismo estilo y con km parecidos). Antes de cargar combustible, un service,
+        <div role="note" className="warn">
+          <b>
+            <span aria-hidden="true">⚠</span> No mezclar datos:
+          </b> {v.plate} se puede confundir con <b>{twin.join(', ')}</b> (patentes parecidas o del mismo estilo y con km parecidos). Antes de cargar combustible, un service,
           una reparación o un km, verificá que la patente sea la correcta.
         </div>
       )}
       {v.status === 'Baja' && (
-        <div role="status" style={{ background: '#f4f3ef', border: '1px solid #d9d6cc', borderRadius: 8, padding: 12, margin: '0 0 12px', fontSize: 14 }}>
-          <b>🗄 Vehículo dado de baja{baja ? ` el ${fd(baja.date)}` : ''}.</b> {baja?.text}
+        <div role="status" className="card" style={{ background: 'var(--an-wash)', margin: '0 0 16px' }}>
+          <span className="bd nd">Baja</span>{' '}
+          <b>Vehículo dado de baja{baja ? ` el ${fd(baja.date)}` : ''}.</b> {baja?.text}
           <br />
           <span className="muted">
             Su historial completo (documentos, mantenimientos, reparaciones, combustible, recorridos, multas y archivos adjuntos) se conserva para
@@ -172,7 +175,7 @@ export default function VehiculoDetalle() {
               className="b2 sm"
               onClick={() => open((c) => <DocForm owner={{ type: 'vehicle', id: v.id }} docId={bajaDoc?.id} onClose={c} />)}
             >
-              📎 {bajaDoc ? 'Agregar fotos / Formulario 08' : 'Cargar fotos / Formulario 08'}
+              <span aria-hidden="true">📎</span> {bajaDoc ? 'Agregar fotos / Formulario 08' : 'Cargar fotos / Formulario 08'}
             </button>
           </div>
         </div>
@@ -189,7 +192,11 @@ export default function VehiculoDetalle() {
         <div>
           <span>Kilometraje{v.km_date ? ` (al ${fd(v.km_date)})` : ''}</span>
           {num(v.km)} km{' '}
-          <button className="b2 sm" onClick={() => open((c) => <KmUpdateForm vehicle={v} onClose={c} />)}>
+          <button
+            className="b2 sm"
+            aria-label="Actualizar kilometraje"
+            onClick={() => open((c) => <KmUpdateForm vehicle={v} onClose={c} />)}
+          >
             actualizar
           </button>
         </div>
@@ -221,8 +228,9 @@ export default function VehiculoDetalle() {
             ? num(v.last_service_km + settings.service_km) + ' km'
             : 'cargar km del último service'}
           {v.last_service_km !== null && v.km !== null && v.km > v.last_service_km + settings.service_km && (
-            <small className="muted" style={{ display: 'block' }}>
-              Vencido: se da por hecho recién al cargar el service en Mantenimientos.
+            <small style={{ display: 'block', marginTop: 4 }}>
+              <span className="bd vencido">Vencido</span>{' '}
+              <span className="muted">se da por hecho recién al cargar el service en Mantenimientos.</span>
             </small>
           )}
         </div>

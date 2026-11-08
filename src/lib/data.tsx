@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { sb } from './supabase';
 import { recomputeVehicleKm } from './kmRecompute';
+import { ordenarNuevaPrimero } from './patentes';
 import type {
   Attachment,
   Doc,
@@ -136,7 +137,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const res = await Promise.all(list.map((t) => fetchAll(t)));
     setDb((prev) => {
       const next = { ...prev } as Record<string, unknown>;
-      list.forEach((t, i) => (next[t] = res[i]));
+      // Vehículos de la patente más nueva a la más vieja: así quedan ordenados en todas las listas y selectores.
+      list.forEach((t, i) => (next[t] = t === 'vehicles' ? ordenarNuevaPrimero(res[i] as Vehicle[]) : res[i]));
       return next as Tables;
     });
   }, []);

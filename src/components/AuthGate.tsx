@@ -38,7 +38,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
-  if (checking) return <div className="center muted">Cargando…</div>;
+  if (checking)
+    return (
+      <div className="center muted" aria-busy="true">
+        Cargando…
+      </div>
+    );
   if (!session) return <Login />;
   return <SessionCtx.Provider value={session}>{children}</SessionCtx.Provider>;
 }
@@ -69,14 +74,18 @@ function Login() {
           Ingresá con tu usuario.
         </p>
         <div className="fg">
-          <label>Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+          <label htmlFor="login-email">Email</label>
+          <input id="login-email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
         </div>
         <div className="fg">
-          <label>Contraseña</label>
-          <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} required />
+          <label htmlFor="login-pass">Contraseña</label>
+          <input id="login-pass" type="password" autoComplete="current-password" value={pass} onChange={(e) => setPass(e.target.value)} required />
         </div>
-        {err && <div className="err">{err}</div>}
+        {err && (
+          <div className="err" role="alert">
+            {err}
+          </div>
+        )}
         <div className="btns">
           <button className="b1" disabled={busy}>
             {busy ? 'Ingresando…' : 'Ingresar'}

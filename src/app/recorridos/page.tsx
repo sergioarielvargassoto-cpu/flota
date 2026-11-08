@@ -58,6 +58,7 @@ export default function Recorridos() {
         <span className="sp" />
         {months.length > 0 && (
           <select
+            aria-label="Mes"
             value={month}
             onChange={(e) => {
               setTm(e.target.value);
@@ -72,6 +73,7 @@ export default function Recorridos() {
           </select>
         )}
         <select
+          aria-label="Filtrar por provincia"
           value={tp}
           onChange={(e) => {
             setTp(e.target.value);
@@ -84,8 +86,8 @@ export default function Recorridos() {
           <option value="Misiones">Misiones</option>
           <option value="Chaco">Chaco</option>
         </select>
-        <button className="b2" onClick={async () => setRows(await pickSheet())}>
-          ⬆ Importar Excel Gestya
+        <button className="b1" onClick={async () => setRows(await pickSheet())}>
+          <span aria-hidden="true">⬆</span> Importar Excel Gestya
         </button>
       </div>
       {data.length ? (
@@ -112,39 +114,72 @@ export default function Recorridos() {
           </div>
           <div className="tw">
             <table>
+              <caption className="sr-only">
+                Recorridos por vehículo del mes, de mayor a menor km. Elegí una fila para ver el detalle diario.
+              </caption>
               <thead>
                 <tr>
-                  <th>Vehículo</th>
-                  <th>Días con movimiento</th>
-                  <th>Km calculados</th>
-                  <th>Km reportados</th>
-                  <th>Vel. máx.</th>
-                  <th>Litros YPF</th>
-                  <th>L/100 km</th>
-                  <th>$ comb./km</th>
-                  <th></th>
+                  <th scope="col">Vehículo</th>
+                  <th scope="col" className="r">
+                    Días con movimiento
+                  </th>
+                  <th scope="col" className="r">
+                    Km calculados
+                  </th>
+                  <th scope="col" className="r">
+                    Km reportados
+                  </th>
+                  <th scope="col" className="r">
+                    Vel. máx.
+                  </th>
+                  <th scope="col" className="r">
+                    Litros YPF
+                  </th>
+                  <th scope="col" className="r">
+                    L/100 km
+                  </th>
+                  <th scope="col" className="r">
+                    $ comb./km
+                  </th>
+                  <th scope="col">
+                    <span className="sr-only">Observaciones</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {data.map((r) => {
                   const ok = r.km > 50 && r.lit > 0;
                   return (
-                    <tr key={r.v.id} className="cl" onClick={() => setTv(r.v.id)}>
-                      <td>
-                        <b>{r.v.plate}</b> <span className="muted">{r.v.brand}</span>
-                      </td>
-                      <td>{r.days}</td>
-                      <td>{num(Math.round(r.km))}</td>
-                      <td>{num(Math.round(r.kr))}</td>
-                      <td>{r.vmax || '—'}</td>
-                      <td>{num(Math.round(r.lit))}</td>
-                      <td>{l100By.get(r.v.id) ? (l100By.get(r.v.id) as number).toFixed(1) : '—'}</td>
-                      <td>{ok ? money(Math.round(r.imp / r.km)) : '—'}</td>
+                    <tr
+                      key={r.v.id}
+                      className="cl"
+                      tabIndex={0}
+                      aria-selected={tv === r.v.id}
+                      onClick={() => setTv(r.v.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setTv(r.v.id);
+                        }
+                      }}
+                    >
+                      <th scope="row">
+                        {r.v.plate} <span className="muted" style={{ fontWeight: 400 }}>{r.v.brand}</span>
+                      </th>
+                      <td className="r">{r.days}</td>
+                      <td className="r">{num(Math.round(r.km))}</td>
+                      <td className="r">{num(Math.round(r.kr))}</td>
+                      <td className="r">{r.vmax || '—'}</td>
+                      <td className="r">{num(Math.round(r.lit))}</td>
+                      <td className="r">{l100By.get(r.v.id) ? (l100By.get(r.v.id) as number).toFixed(1) : '—'}</td>
+                      <td className="r">{ok ? money(Math.round(r.imp / r.km)) : '—'}</td>
                       <td>
                         {!r.has ? (
                           <Badge status="nd">Sin datos GPS</Badge>
                         ) : r.km <= 50 && r.lit > 0 ? (
-                          <Badge status="vencido">⚠ GPS sin km pero cargó combustible</Badge>
+                          <Badge status="vencido">
+                            <span aria-hidden="true">⚠</span> GPS sin km pero cargó combustible
+                          </Badge>
                         ) : null}
                       </td>
                     </tr>
@@ -164,13 +199,20 @@ export default function Recorridos() {
               <h3>Detalle diario · {sel.plate}</h3>
               <div className="tw">
                 <table>
+                  <caption className="sr-only">Detalle diario de recorridos de {sel.plate}</caption>
                   <thead>
                     <tr>
-                      <th>Día</th>
-                      <th>Km calculados</th>
-                      <th>Km reportados</th>
-                      <th>Vel. máx.</th>
-                      <th>En movimiento</th>
+                      <th scope="col">Día</th>
+                      <th scope="col" className="r">
+                        Km calculados
+                      </th>
+                      <th scope="col" className="r">
+                        Km reportados
+                      </th>
+                      <th scope="col" className="r">
+                        Vel. máx.
+                      </th>
+                      <th scope="col">En movimiento</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -179,9 +221,9 @@ export default function Recorridos() {
                       .map((t) => (
                         <tr key={t.id}>
                           <td>{fd(t.date)}</td>
-                          <td>{num(t.km_calc)}</td>
-                          <td>{num(t.km_reported)}</td>
-                          <td>{t.max_speed ?? '—'}</td>
+                          <td className="r">{num(t.km_calc)}</td>
+                          <td className="r">{num(t.km_reported)}</td>
+                          <td className="r">{t.max_speed ?? '—'}</td>
                           <td>{t.moving_time}</td>
                         </tr>
                       ))}
@@ -190,13 +232,14 @@ export default function Recorridos() {
               </div>
             </>
           ) : (
-            <p className="muted">Tocá un vehículo para ver el detalle diario.</p>
+            <p className="muted">Tocá un vehículo (o elegilo con Tab y Enter) para ver el detalle diario.</p>
           )}
         </>
       ) : (
         <div className="empty">
-          Todavía no hay recorridos. Importá el Excel “Distancias Diarias” de Gestya (hoja “Grilla por Vehículos y
-          Días”).
+          {trips.length
+            ? 'No hay vehículos con recorridos o cargas en este mes para la provincia elegida. Probá con «Todas las provincias» u otro mes.'
+            : 'Todavía no hay recorridos. Usá «Importar Excel Gestya» y elegí el Excel “Distancias Diarias” (hoja “Grilla por Vehículos y Días”).'}
         </div>
       )}
       {rows && (

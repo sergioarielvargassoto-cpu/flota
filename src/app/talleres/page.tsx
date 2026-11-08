@@ -19,14 +19,21 @@ export default function Talleres() {
       {workshops.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Talleres, trabajos realizados y gasto total en cada uno</caption>
             <thead>
               <tr>
-                <th>Taller</th>
-                <th>Contacto</th>
-                <th>Especialidad</th>
-                <th>Trabajos</th>
-                <th>Gastado</th>
-                <th></th>
+                <th scope="col">Taller</th>
+                <th scope="col">Contacto</th>
+                <th scope="col">Especialidad</th>
+                <th scope="col" className="r">
+                  Trabajos
+                </th>
+                <th scope="col" className="r">
+                  Gastado
+                </th>
+                <th scope="col">
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -42,14 +49,15 @@ export default function Talleres() {
                     </td>
                     <td>{w.phone}</td>
                     <td>{w.specialty}</td>
-                    <td>{rs.length + ms.length}</td>
-                    <td>{money(t)}</td>
+                    <td className="r">{rs.length + ms.length}</td>
+                    <td className="r">{money(t)}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <button className="b2 sm" onClick={() => open((c) => <WorkshopForm id={w.id} onClose={c} />)}>
                         Editar
                       </button>{' '}
                       <button
                         className="b3 sm"
+                        aria-label={`Eliminar taller ${w.name}`}
                         onClick={() => {
                           if (confirm('¿Eliminar taller? Los registros históricos quedan sin taller.'))
                             guard(async () => {
@@ -68,7 +76,10 @@ export default function Talleres() {
           </table>
         </div>
       ) : (
-        <div className="empty">Cargá tus talleres de confianza para asociarlos a reparaciones y mantenimientos.</div>
+        <div className="empty">
+          Todavía no cargaste talleres. Usá «+ Taller» para agregar los de confianza y asociarlos a reparaciones y
+          mantenimientos.
+        </div>
       )}
       {el}
     </>

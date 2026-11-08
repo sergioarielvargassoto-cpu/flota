@@ -1,28 +1,39 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 import { useData } from '@/lib/data';
 import { InfractionForm } from '@/components/forms';
 import { useModal } from '@/components/useModal';
 import { AttachmentList } from '@/components/Attachments';
 
-export default function InfractionDetail({ params }: { params: { id: string } }) {
+/** Estado de la infracción → insignia de la paleta (siempre con texto). */
+const STATUS_BADGE: Record<string, string> = {
+  Registrada: 'urgente',
+  Pagada: 'ok',
+  Anulada: 'nd',
+};
+
+export default function InfractionDetail() {
+  // En Next 16 los params de página son una promesa: en un componente cliente se leen con useParams
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { infractions, fines, drivers, vehicles, remove } = useData();
   const { el, open } = useModal();
-  const infraction = infractions.find((i) => i.id === params.id);
+  const infraction = infractions.find((i) => i.id === id);
 
-  if (!infraction) return <div style={{ padding: '20px' }}>Infracción no encontrada</div>;
+  if (!infraction)
+    return (
+      <div className="empty">
+        Infracción no encontrada.{' '}
+        <Link className="lk" href="/infracciones">
+          Volver
+        </Link>
+      </div>
+    );
 
   const driver = drivers.find((d) => d.id === infraction.driver_id);
   const vehicle = vehicles.find((v) => v.id === infraction.vehicle_id);
   const associatedFines = fines.filter((f) => f.infraction_id === infraction.id);
-
-  const statusColor: Record<string, string> = {
-    Registrada: '#ff9800',
-    Pagada: '#4caf50',
-    Anulada: '#999',
-  };
 
   const handleDelete = async () => {
     if (confirm('¿Eliminar esta infracción?')) {
@@ -38,29 +49,34 @@ export default function InfractionDetail({ params }: { params: { id: string } })
   return (
     <>
       <div className="bar">
+        <Link
+          className="b2 sm"
+          href="/infracciones"
+          style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
+        >
+          <span aria-hidden="true">‹</span> Infracciones
+        </Link>
         <h2 style={{ margin: 0 }}>Infracción {infraction.infraction_number && `#${infraction.infraction_number}`}</h2>
         <span className="sp" />
         <button className="b1" onClick={() => open((c) => <InfractionForm id={infraction.id} onClose={c} />)}>
           Editar
         </button>
-        <button
-          onClick={handleDelete}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#f44336',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
+        <button className="b3" onClick={handleDelete}>
           Eliminar
         </button>
       </div>
 
-      <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h3>Información General</h3>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: 16,
+        }}
+      >
+        <section className="card" aria-labelledby="inf-gral">
+          <h3 id="inf-gral" style={{ marginTop: 0 }}>
+            Información general
+          </h3>
           <p>
             <b>Conductor:</b> {driver?.name || '—'}
           </p>
@@ -80,63 +96,63 @@ export default function InfractionDetail({ params }: { params: { id: string } })
             <b>N° Infracción:</b> {infraction.infraction_number || '—'}
           </p>
           <p>
-            <b>Estado:</b>{' '}
-            <span
-              style={{
-                padding: '4px 8px',
-                borderRadius: '4px',
-                backgroundColor: statusColor[infraction.status],
-                color: '#fff',
-              }}
-            >
-              {infraction.status}
-            </span>
+            <b>Estado:</b> <span className={'bd ' + (STATUS_BADGE[infraction.status] ?? 'nd')}>{infraction.status}</span>
           </p>
-          {<AttachmentList kind="infraction" id={infraction.id} editable={true} />}
-        </div>
+          <AttachmentList kind="infraction" id={infraction.id} editable={true} />
+        </section>
 
-        <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h3>Multa</h3>
+        <section className="card" aria-labelledby="inf-multa">
+          <h3 id="inf-multa" style={{ marginTop: 0 }}>
+            Multa
+          </h3>
           <p>
-            <b>Monto:</b> {infraction.fine_amount ? `$${infraction.fine_amount.toFixed(2)}` : '—'}
+            <b>Monto:</b> <span className="num">{infraction.fine_amount ? `$${infraction.fine_amount.toFixed(2)}` : '—'}</span>
           </p>
-          <h4>Detalles de Pago</h4>
+          <h4>Detalles de pago</h4>
           {associatedFines.length ? (
-            <table style={{ width: '100%', fontSize: '14px' }}>
-              <tbody>
-                {associatedFines.map((fine) => (
-                  <tr key={fine.id}>
-                    <td>
-                      <b>Monto:</b> ${fine.amount.toFixed(2)}
-                    </td>
-                    <td>
-                      <b>Pagado:</b> {fine.paid_amount ? `$${fine.paid_amount.toFixed(2)}` : '—'}
-                    </td>
-                    <td>
-                      <b>Fecha pago:</b> {fine.paid_date || '—'}
-                    </td>
+            <div className="tw">
+              <table>
+                <caption className="sr-only">Pagos de la multa</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className="r">
+                      Monto
+                    </th>
+                    <th scope="col" className="r">
+                      Pagado
+                    </th>
+                    <th scope="col">Fecha de pago</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {associatedFines.map((fine) => (
+                    <tr key={fine.id}>
+                      <td className="r">${fine.amount.toFixed(2)}</td>
+                      <td className="r">{fine.paid_amount ? `$${fine.paid_amount.toFixed(2)}` : '—'}</td>
+                      <td>{fine.paid_date || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <p style={{ fontSize: '14px' }}>Sin detalles de multa registrados</p>
+            <p className="muted">Todavía no hay pagos registrados para esta multa.</p>
           )}
-        </div>
+        </section>
       </div>
 
       {infraction.description && (
-        <div style={{ padding: '20px', marginTop: '10px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h3>Descripción</h3>
-          <p>{infraction.description}</p>
-        </div>
+        <section className="card" style={{ marginTop: 16 }}>
+          <h3 style={{ marginTop: 0 }}>Descripción</h3>
+          <p style={{ marginBottom: 0 }}>{infraction.description}</p>
+        </section>
       )}
 
       {infraction.notes && (
-        <div style={{ padding: '20px', marginTop: '10px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h3>Notas</h3>
-          <p>{infraction.notes}</p>
-        </div>
+        <section className="card" style={{ marginTop: 16 }}>
+          <h3 style={{ marginTop: 0 }}>Notas</h3>
+          <p style={{ marginBottom: 0 }}>{infraction.notes}</p>
+        </section>
       )}
 
       {el}

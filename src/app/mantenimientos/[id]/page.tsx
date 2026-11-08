@@ -13,7 +13,15 @@ export default function MaintenanceDetail() {
   const { maintenance, vehicles, workshops, maintenance_history, remove, reload } = useData();
   const { el, open } = useModal();
   const maint = maintenance.find((m) => m.id === id);
-  if (!maint) return <div style={{ padding: '20px' }}>Mantenimiento no encontrado</div>;
+  if (!maint)
+    return (
+      <div className="empty">
+        Mantenimiento no encontrado.{' '}
+        <Link className="lk" href="/mantenimientos">
+          Volver a Mantenimientos
+        </Link>
+      </div>
+    );
   const vehicle = vehicles.find((v) => v.id === maint.vehicle_id);
   const workshop = workshops.find((w) => w.id === maint.workshop_id);
   const history = maintenance_history.filter((h) => h.maintenance_id === maint.id);
@@ -24,9 +32,9 @@ export default function MaintenanceDetail() {
         <Link
           className="b2 sm"
           href={`/vehiculos/${vehicle?.id}`}
-          style={{ padding: '8px 14px', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}
+          style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
         >
-          ‹ {vehicle?.plate}
+          <span aria-hidden="true">‹</span> {vehicle?.plate}
         </Link>
         <h2 style={{ margin: 0 }}>
           {maint.type} {fd(maint.date)}
@@ -36,6 +44,7 @@ export default function MaintenanceDetail() {
           Editar
         </button>
         <button
+          className="b3"
           onClick={() => {
             if (confirm('¿Eliminar este mantenimiento?'))
               guard(async () => {
@@ -43,22 +52,16 @@ export default function MaintenanceDetail() {
                 router.push(`/vehiculos/${vehicle?.id}`);
               });
           }}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#f44336',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
         >
           Eliminar
         </button>
       </div>
 
-      <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-          <h3>Información</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        <section className="card" aria-labelledby="mnt-info">
+          <h3 id="mnt-info" style={{ marginTop: 0 }}>
+            Información
+          </h3>
           <p>
             <b>Vehículo:</b> {vehicle?.plate || '—'}
           </p>
@@ -72,10 +75,10 @@ export default function MaintenanceDetail() {
             <b>Taller:</b> {workshop?.name || '—'}
           </p>
           <p>
-            <b>Km realizado:</b> {num(maint.km)}
+            <b>Km realizado:</b> <span className="num">{num(maint.km)}</span>
           </p>
           <p>
-            <b>Costo:</b> {money(maint.cost)}
+            <b>Costo:</b> <span className="num">{money(maint.cost)}</span>
           </p>
           <p>
             <b>Próxima fecha:</b> {maint.next_date ? fd(maint.next_date) : '—'}
@@ -88,7 +91,7 @@ export default function MaintenanceDetail() {
               <b>Notas:</b> {maint.notes}
             </p>
           )}
-        </div>
+        </section>
       </div>
 
       <MaintenanceHistoryTimeline history={history} />

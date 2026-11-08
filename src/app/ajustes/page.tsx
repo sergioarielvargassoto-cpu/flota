@@ -7,6 +7,14 @@ import { download, guard, todayStr } from '@/lib/util';
 import { auditKmConsistency } from '@/lib/audit';
 import { systemAudit } from '@/lib/system-audit';
 
+/** Severidad de la auditoría → insignia de la paleta (siempre con texto). */
+const SEV: Record<string, { cls: string; label: string }> = {
+  critical: { cls: 'vencido', label: 'Crítico' },
+  warning: { cls: 'urgente', label: 'Advertencia' },
+  info: { cls: 'nd', label: 'Info' },
+};
+const sevOf = (k: string) => SEV[k] ?? SEV.info;
+
 export default function Ajustes() {
   const d = useData();
   const session = useSession();
@@ -28,9 +36,11 @@ export default function Ajustes() {
 
   const numField = (k: 'd1' | 'd2' | 'd3' | 'km_alert' | 'service_km', label: string, min = 1) => (
     <div className="fg" key={k}>
-      <label>{label}</label>
+      <label htmlFor={'set_' + k}>{label}</label>
       <input
+        id={'set_' + k}
         type="number"
+        inputMode="numeric"
         min={min}
         defaultValue={s[k]}
         onBlur={(e) => {
@@ -78,8 +88,9 @@ export default function Ajustes() {
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Empresa</h3>
           <div className="fg">
-            <label>Nombre (se muestra arriba)</label>
+            <label htmlFor="set_company">Nombre (se muestra arriba)</label>
             <input
+              id="set_company"
               defaultValue={s.company}
               onBlur={(e) => {
                 if (e.target.value !== s.company) guard(() => saveSettings({ company: e.target.value }));
@@ -103,9 +114,11 @@ export default function Ajustes() {
               setPerm(await Notification.requestPermission());
             }}
           >
-            🔔 Activar notificaciones de escritorio
+            <span aria-hidden="true">🔔</span> Activar notificaciones de escritorio
           </button>{' '}
-          <span className="muted">Estado: {perm}</span>
+          <span className="muted" role="status">
+            Estado: {perm}
+          </span>
         </div>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Respaldo de datos</h3>
@@ -115,11 +128,11 @@ export default function Ajustes() {
             <b>{lastBackup ? new Date(lastBackup).toLocaleString('es-AR') : 'nunca'}</b>
           </p>
           <button className="b1" onClick={exportBackup}>
-            ⬇ Descargar respaldo
+            <span aria-hidden="true">⬇</span> Descargar respaldo
           </button>
         </div>
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>🔍 Auditoría Completa del Sistema</h3>
+          <h3 style={{ marginTop: 0 }}>Auditoría completa del sistema</h3>
           <p className="muted">
             Analiza integridad referencial, duplicados, flujo de datos y consistencia en todo el sistema.
           </p>
@@ -138,105 +151,96 @@ export default function Ajustes() {
             disabled={systemAuditLoading}
             style={{ marginBottom: '12px' }}
           >
-            {systemAuditLoading ? 'Analizando sistema...' : '▶ Ejecutar auditoría completa'}
+            {systemAuditLoading ? (
+              'Analizando sistema…'
+            ) : (
+              <>
+                <span aria-hidden="true">▶</span> Ejecutar auditoría completa
+              </>
+            )}
           </button>
           {systemAuditResult && (
-            <div style={{ padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '6px', fontSize: '12px' }}>
-              <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>
+            <div role="status" style={{ fontSize: 13 }}>
+              <p style={{ margin: '0 0 8px 0', fontWeight: 700 }}>
                 Resultado: {systemAuditResult.totalIssues} problemas encontrados
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                <div
-                  style={{
-                    padding: '8px',
-                    backgroundColor: systemAuditResult.summary.bySeverity.critical > 0 ? '#ffcdd2' : '#e8f5e9',
-                    borderRadius: '4px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 'bold',
-                      color: systemAuditResult.summary.bySeverity.critical > 0 ? '#d32f2f' : '#388e3c',
-                    }}
-                  >
+              <div
+                className="cards"
+                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 12 }}
+              >
+                <div className="card" style={{ padding: '12px 14px', marginBottom: 0 }}>
+                  <div className="n" style={{ fontSize: 24 }}>
                     {systemAuditResult.summary.bySeverity.critical}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>Críticos</div>
+                  <div className="l">Críticos</div>
+                  {systemAuditResult.summary.bySeverity.critical > 0 ? (
+                    <span className="kpi-mk vencido">
+                      <i aria-hidden="true">!</i>Revisar
+                    </span>
+                  ) : (
+                    <span className="kpi-mk ok">
+                      <i aria-hidden="true">✓</i>Sin problemas
+                    </span>
+                  )}
                 </div>
-                <div
-                  style={{
-                    padding: '8px',
-                    backgroundColor: systemAuditResult.summary.bySeverity.warning > 0 ? '#fff3e0' : '#e8f5e9',
-                    borderRadius: '4px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 'bold',
-                      color: systemAuditResult.summary.bySeverity.warning > 0 ? '#f57c00' : '#388e3c',
-                    }}
-                  >
+                <div className="card" style={{ padding: '12px 14px', marginBottom: 0 }}>
+                  <div className="n" style={{ fontSize: 24 }}>
                     {systemAuditResult.summary.bySeverity.warning}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>Advertencias</div>
+                  <div className="l">Advertencias</div>
+                  {systemAuditResult.summary.bySeverity.warning > 0 ? (
+                    <span className="kpi-mk urgente">
+                      <i aria-hidden="true">!</i>Revisar
+                    </span>
+                  ) : (
+                    <span className="kpi-mk ok">
+                      <i aria-hidden="true">✓</i>Sin advertencias
+                    </span>
+                  )}
                 </div>
-                <div style={{ padding: '8px', backgroundColor: '#e3f2fd', borderRadius: '4px', textAlign: 'center' }}>
-                  <div style={{ fontWeight: 'bold', color: '#2196f3' }}>
+                <div className="card" style={{ padding: '12px 14px', marginBottom: 0 }}>
+                  <div className="n" style={{ fontSize: 24 }}>
                     {systemAuditResult.summary.bySeverity.info}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>Información</div>
+                  <div className="l">Información</div>
                 </div>
               </div>
               {systemAuditResult.issues.length > 0 && (
-                <div
-                  style={{
-                    maxHeight: '400px',
-                    overflow: 'auto',
-                    backgroundColor: '#fff',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid #ddd',
-                  }}
+                <ul
+                  aria-label="Problemas encontrados"
+                  className="card"
+                  style={{ maxHeight: 400, overflow: 'auto', listStyle: 'none', margin: 0, padding: '8px 12px' }}
                 >
                   {systemAuditResult.issues.map((issue: any, i: number) => (
-                    <div
+                    <li
                       key={i}
                       style={{
-                        marginBottom: '8px',
-                        paddingBottom: '8px',
-                        borderBottom: i < systemAuditResult.issues.length - 1 ? '1px solid #eee' : 'none',
+                        padding: '8px 0',
+                        borderBottom: i < systemAuditResult.issues.length - 1 ? '1px solid var(--an-grid)' : 'none',
                       }}
                     >
-                      <div
-                        style={{
-                          fontWeight: 'bold',
-                          color:
-                            issue.severity === 'critical'
-                              ? '#d32f2f'
-                              : issue.severity === 'warning'
-                                ? '#f57c00'
-                                : '#2196f3',
-                          fontSize: '11px',
-                        }}
-                      >
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>
+                        <span className={'bd ' + sevOf(issue.severity).cls}>{sevOf(issue.severity).label}</span>{' '}
                         [{issue.table}] {issue.type}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#333' }}>{issue.message}</div>
+                      <div className="an-ink-2" style={{ fontSize: 12, marginTop: 2 }}>
+                        {issue.message}
+                      </div>
                       {issue.count > 1 && (
-                        <div style={{ fontSize: '10px', color: '#999' }}>Cantidad: {issue.count}</div>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          Cantidad: <span className="num">{issue.count}</span>
+                        </div>
                       )}
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           )}
         </div>
 
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Auditoría de Kilometraje</h3>
+          <h3 style={{ marginTop: 0 }}>Auditoría de kilometraje</h3>
           <p className="muted">Verifica la consistencia entre cambios manuales, datos importados y valores actuales.</p>
           <button
             className="b2"
@@ -252,54 +256,38 @@ export default function Ajustes() {
             }
             disabled={auditLoading}
           >
-            {auditLoading ? 'Analizando...' : '🔍 Ejecutar auditoría'}
+            {auditLoading ? 'Analizando…' : 'Ejecutar auditoría'}
           </button>
           {auditResult && (
-            <div
-              style={{
-                marginTop: '16px',
-                padding: '12px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '6px',
-                fontSize: '13px',
-              }}
-            >
+            <div role="status" style={{ marginTop: 16, fontSize: 13 }}>
               <p>
                 <b>Resultado:</b> {auditResult.totalVehicles} vehículos analizados
               </p>
-              <p
-                style={{
-                  color:
-                    auditResult.summary.critical > 0
-                      ? '#d32f2f'
-                      : auditResult.summary.warnings > 0
-                        ? '#f57c00'
-                        : '#388e3c',
-                }}
-              >
-                🔴 {auditResult.summary.critical} críticos | 🟠 {auditResult.summary.warnings} advertencias | 🟢{' '}
-                {auditResult.summary.info} info
+              <p style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span className="bd vencido">{auditResult.summary.critical} críticos</span>
+                <span className="bd urgente">{auditResult.summary.warnings} advertencias</span>
+                <span className="bd nd">{auditResult.summary.info} info</span>
               </p>
               {auditResult.issues.length > 0 && (
-                <div style={{ marginTop: '12px', maxHeight: '300px', overflow: 'auto' }}>
+                <ul style={{ marginTop: 12, maxHeight: 300, overflow: 'auto', listStyle: 'none', padding: 0 }}>
                   {auditResult.issues.slice(0, 10).map((issue: any, i: number) => (
-                    <div
+                    <li
                       key={i}
                       style={{
-                        marginBottom: '8px',
-                        padding: '8px',
-                        backgroundColor: '#fff',
-                        borderLeft: `3px solid ${issue.severity === 'critical' ? '#d32f2f' : issue.severity === 'warning' ? '#f57c00' : '#2196f3'}`,
-                        borderRadius: '2px',
+                        marginBottom: 8,
+                        padding: 8,
+                        border: '1px solid var(--an-border)',
+                        borderRadius: 8,
                       }}
                     >
-                      <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{issue.type}:</span> {issue.message}
-                    </div>
+                      <span className={'bd ' + sevOf(issue.severity).cls}>{sevOf(issue.severity).label}</span>{' '}
+                      <span style={{ fontWeight: 700, fontSize: 12 }}>{issue.type}:</span> {issue.message}
+                    </li>
                   ))}
                   {auditResult.issues.length > 10 && (
-                    <p className="muted">... y {auditResult.issues.length - 10} más</p>
+                    <li className="muted">… y {auditResult.issues.length - 10} más</li>
                   )}
-                </div>
+                </ul>
               )}
             </div>
           )}

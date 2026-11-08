@@ -1,31 +1,25 @@
 'use client';
 import { useState } from 'react';
 import { useData } from '@/lib/data';
-import { fd, money, num } from '@/lib/util';
+import { fd, num } from '@/lib/util';
 import { guard } from '@/lib/util';
 import { pickSheet } from '@/lib/excel';
 import { TRIP_SPEC, useImporters } from '@/lib/importers';
 import { ImportDialog } from '@/components/ImportDialog';
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
+import { TarjetaGrafico, TooltipAn, EJE, GRILLA, CURSOR_BARRA, CURSOR_LINEA, PALETA } from '@/components/Charts';
+import { formatoMontoCorto, indiceMaximo, variacion } from '@/lib/graficos';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
+/** "2026-10" → "10/2026" (mismo formato que el selector de mes). */
+const mesLabel = (ym: string) => ym.split('-').reverse().join('/');
+const pct = (x: number) => `${Math.abs(Math.round(x * 100))} %`;
 
 export default function ReportesKm() {
   const { km_reports, vehicles, trips } = useData();
   const { importGestya } = useImporters();
   const [rows, setRows] = useState<unknown[][] | null>(null);
   const [selectedMonth, setSelectedMonth] = useState('');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedYear] = useState(new Date().getFullYear());
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [showExcluded, setShowExcluded] = useState(false);
 
@@ -76,12 +70,6 @@ export default function ReportesKm() {
     branch: d.v?.branch || 'Corrientes',
   }));
 
-  const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
-  const branchColors: Record<string, string> = {};
-  branches.forEach((b, i) => {
-    branchColors[b] = colors[i % colors.length];
-  });
-
   // Evolución mensual (últimos 6 meses)
   const allReports = km_reports.filter((r) => r.vehicle_id === (filtered[0]?.r.vehicle_id || ''));
   const evolutionData = [...new Set(allReports.map((r) => `${r.year}-${String(r.month).padStart(2, '0')}`))]
@@ -95,48 +83,82 @@ export default function ReportesKm() {
       return { mes: ym, km: total };
     });
 
+  // Hallazgos para los títulos (sólo presentación)
+  const iMaxBar = indiceMaximo(barData.map((d) => d.km));
+  const tituloBarras =
+    iMaxBar >= 0
+      ? `${barData[iMaxBar].patente} es el vehículo con más km del mes: ${num(Math.round(barData[iMaxBar].km))} km`
+      : 'Km por vehículo';
+  const ultimo = evolutionData[evolutionData.length - 1];
+  const previo = evolutionData[evolutionData.length - 2];
+  const varEvol = ultimo && previo ? variacion(ultimo.km, previo.km) : null;
+  const iMaxEvol = indiceMaximo(evolutionData.map((d) => d.km));
+  const tituloEvol =
+    varEvol !== null && ultimo && previo
+      ? varEvol === 0
+        ? `En ${mesLabel(ultimo.mes)} se recorrieron los mismos km que en ${mesLabel(previo.mes)}`
+        : `En ${mesLabel(ultimo.mes)} se recorrieron ${pct(varEvol)} ${varEvol > 0 ? 'más' : 'menos'} km que en ${mesLabel(previo.mes)}`
+      : iMaxEvol >= 0
+        ? `${mesLabel(evolutionData[iMaxEvol].mes)} fue el mes con más km`
+        : 'Evolución de los km';
+  const alcance = `${mesLabel(month)}${branch ? ` · ${branch}` : ''}`;
+
   return (
     <>
-      <div className="bar">
-        <h2 style={{ margin: 0 }}>📊 Reporte Mensual de Kilómetros</h2>
-        <span className="sp" />
-        {months.length > 0 && (
-          <>
-            <select value={month} onChange={(e) => setSelectedMonth(e.target.value)}>
-              {months.map((m) => (
-                <option key={m} value={m}>
-                  {m.split('-').reverse().join('/')}
-                </option>
-              ))}
-            </select>
-            {branches.length > 0 && (
-              <select value={branch || ''} onChange={(e) => setSelectedBranch(e.target.value || null)}>
-                <option value="">Todas las sucursales</option>
-                {branches.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
+      <div style={{ marginBottom: 16 }}>
+        <div className="an-eyebrow">Reportes</div>
+        <h2 style={{ margin: '4px 0 0' }}>Reporte mensual de kilómetros</h2>
+      </div>
+
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="bar" style={{ marginBottom: 0 }}>
+          {months.length > 0 && (
+            <>
+              <label htmlFor="rk-mes">Mes</label>
+              <select id="rk-mes" value={month} onChange={(e) => setSelectedMonth(e.target.value)}>
+                {months.map((m) => (
+                  <option key={m} value={m}>
+                    {mesLabel(m)}
                   </option>
                 ))}
               </select>
-            )}
-          </>
-        )}
-        <button className="b2" onClick={async () => setRows(await pickSheet())}>
-          ⬆ Importar Gestya
-        </button>
-        {month && (
-          <button
-            className="b1"
-            onClick={() =>
-              guard(async () => {
-                const pdf = await import('@/lib/kmReportPdf').then((m) => m.generateKmReportPdf);
-                pdf(filtered, month.split('-') as [string, string], branch);
-              })
-            }
-          >
-            📄 PDF
+              {branches.length > 0 && (
+                <>
+                  <label htmlFor="rk-sucursal">Sucursal</label>
+                  <select
+                    id="rk-sucursal"
+                    value={branch || ''}
+                    onChange={(e) => setSelectedBranch(e.target.value || null)}
+                  >
+                    <option value="">Todas las sucursales</option>
+                    {branches.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </>
+          )}
+          <span className="sp" />
+          <button className="b2" onClick={async () => setRows(await pickSheet())}>
+            <span aria-hidden="true">⬆ </span>Importar Gestya
           </button>
-        )}
+          {month && (
+            <button
+              className="b1"
+              onClick={() =>
+                guard(async () => {
+                  const pdf = await import('@/lib/kmReportPdf').then((m) => m.generateKmReportPdf);
+                  pdf(filtered, month.split('-') as [string, string], branch);
+                })
+              }
+            >
+              Descargar PDF
+            </button>
+          )}
+        </div>
       </div>
 
       {filtered.length > 0 ? (
@@ -154,72 +176,158 @@ export default function ReportesKm() {
               <div className="n">{filtered.length}</div>
               <div className="l">Vehículos reportados</div>
             </div>
-            <div
-              className="card"
-              style={{ borderLeft: excessDays.length > 0 ? '4px solid #ef4444' : '4px solid #10b981' }}
-            >
-              <div className="n" style={{ color: excessDays.length > 0 ? '#ef4444' : '#10b981' }}>
-                {excessDays.length}
-              </div>
+            <div className="card">
+              <div className="n">{excessDays.length}</div>
               <div className="l">Días que excedieron {SPEED_LIMIT} km/h</div>
-            </div>
-            <div
-              className="card"
-              style={{ borderLeft: maxExcessSpeed > 0 ? '4px solid #f59e0b' : '4px solid #6b7280' }}
-            >
-              <div className="n" style={{ color: maxExcessSpeed > 0 ? '#f59e0b' : '#6b7280' }}>
-                {maxExcessSpeed || '—'}
+              <div style={{ marginTop: 8 }}>
+                {excessDays.length > 0 ? (
+                  <span className="kpi-mk vencido">
+                    <i aria-hidden="true">!</i>Hubo excesos de velocidad
+                  </span>
+                ) : (
+                  <span className="kpi-mk ok">
+                    <i aria-hidden="true">✓</i>Sin excesos
+                  </span>
+                )}
               </div>
+            </div>
+            <div className="card">
+              <div className="n">{maxExcessSpeed ? `${maxExcessSpeed} km/h` : '—'}</div>
               <div className="l">Máx. velocidad excedida</div>
             </div>
           </div>
 
           {barData.length > 0 && (
-            <div style={{ marginTop: '30px' }}>
-              <h3>Km por Vehículo</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={barData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="patente" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="km" radius={[8, 8, 0, 0]}>
-                    {barData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={branchColors[entry.branch]} />
+            <TarjetaGrafico
+              titulo={tituloBarras}
+              subtitulo={`Km recorridos por vehículo en ${alcance}, de mayor a menor.`}
+              tabla={() => (
+                <table>
+                  <caption className="sr-only">Km recorridos por vehículo en {alcance}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Patente</th>
+                      <th scope="col" className="r">
+                        Km del mes
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {barData.map((d, i) => (
+                      <tr key={d.patente + i}>
+                        <th scope="row">{d.patente}</th>
+                        <td className="r num">{num(Math.round(d.km))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th scope="row">Total</th>
+                      <td className="r num">{num(Math.round(totalKm))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            >
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={barData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid {...GRILLA} />
+                  <XAxis
+                    dataKey="patente"
+                    {...EJE}
+                    interval={0}
+                    angle={-40}
+                    textAnchor="end"
+                    height={62}
+                  />
+                  <YAxis {...EJE} domain={[0, 'auto']} tickFormatter={formatoMontoCorto} width={48} />
+                  <Tooltip
+                    cursor={CURSOR_BARRA}
+                    content={<TooltipAn formato={(v) => `${num(Math.round(v))} km`} />}
+                  />
+                  <Bar dataKey="km" name="Km del mes" radius={[4, 4, 0, 0]} maxBarSize={48}>
+                    {barData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={index === iMaxBar ? PALETA.barStrong : PALETA.bar} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </TarjetaGrafico>
           )}
 
           {evolutionData.length > 1 && (
-            <div style={{ marginTop: '30px' }}>
-              <h3>Evolución Últimos Meses</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={evolutionData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mes" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="km" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
+            <TarjetaGrafico
+              titulo={tituloEvol}
+              subtitulo={`Km totales por mes${branch ? ` en ${branch}` : ''}, últimos ${evolutionData.length} meses con reporte.`}
+              tabla={() => (
+                <table>
+                  <caption className="sr-only">Km totales por mes{branch ? ` en ${branch}` : ''}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Mes</th>
+                      <th scope="col" className="r">
+                        Km totales
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evolutionData.map((d) => (
+                      <tr key={d.mes}>
+                        <th scope="row">{mesLabel(d.mes)}</th>
+                        <td className="r num">{num(Math.round(d.km))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            >
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={evolutionData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid {...GRILLA} />
+                  <XAxis dataKey="mes" {...EJE} tickFormatter={mesLabel} />
+                  <YAxis {...EJE} domain={[0, 'auto']} tickFormatter={formatoMontoCorto} width={48} />
+                  <Tooltip
+                    cursor={CURSOR_LINEA}
+                    content={
+                      <TooltipAn
+                        formato={(v) => `${num(Math.round(v))} km`}
+                        titulo={(l) => mesLabel(String(l ?? ''))}
+                      />
+                    }
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="km"
+                    name="Km totales"
+                    stroke={PALETA.line}
+                    strokeWidth={2.5}
+                    dot={{ r: 3, fill: PALETA.line, strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
+            </TarjetaGrafico>
           )}
 
           {excessDays.length > 0 && (
-            <div style={{ marginTop: '30px' }}>
-              <h3>⚠️ Días con Exceso de Velocidad (límite: {SPEED_LIMIT} km/h)</h3>
+            <section style={{ marginTop: 8, marginBottom: 20 }}>
+              <h3>Días con exceso de velocidad (límite: {SPEED_LIMIT} km/h)</h3>
               <div className="tw">
                 <table>
+                  <caption className="sr-only">
+                    Días con velocidad máxima mayor a {SPEED_LIMIT} km/h en {alcance}, de mayor a menor
+                  </caption>
                   <thead>
                     <tr>
-                      <th>Día</th>
-                      <th>Vehículo</th>
-                      <th>Marca</th>
-                      <th>Velocidad Máxima</th>
-                      <th>Exceso</th>
+                      <th scope="col">Día</th>
+                      <th scope="col">Vehículo</th>
+                      <th scope="col">Marca</th>
+                      <th scope="col" className="r">
+                        Velocidad máxima
+                      </th>
+                      <th scope="col" className="r">
+                        Exceso
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -229,66 +337,86 @@ export default function ReportesKm() {
                         const v = vehicles.find((x) => x.id === t.vehicle_id);
                         const excess = (t.max_speed ?? 0) - SPEED_LIMIT;
                         return (
-                          <tr key={t.id} style={{ backgroundColor: '#fff3cd' }}>
-                            <td>
-                              <b>{fd(t.date)}</b>
-                            </td>
+                          <tr key={t.id}>
+                            <th scope="row" className="num">
+                              {fd(t.date)}
+                            </th>
                             <td>{v?.plate || '?'}</td>
                             <td className="muted">{v?.brand || '—'}</td>
-                            <td>
-                              <b style={{ color: '#ef4444' }}>{t.max_speed} km/h</b>
+                            <td className="r num">
+                              <b>{t.max_speed} km/h</b>
                             </td>
-                            <td style={{ color: '#ef4444' }}>+{excess} km/h</td>
+                            <td className="r num" style={{ color: '#b91c1c', fontWeight: 600 }}>
+                              +{excess} km/h
+                            </td>
                           </tr>
                         );
                       })}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </section>
           )}
 
-          <div style={{ marginTop: '30px' }}>
-            <div style={{ marginBottom: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>Detalle por Vehículo</h3>
-              <label style={{ fontSize: '12px', marginLeft: 'auto' }}>
-                <input type="checkbox" checked={showExcluded} onChange={(e) => setShowExcluded(e.target.checked)} />{' '}
+          <section style={{ marginTop: 8 }}>
+            <div className="bar" style={{ marginBottom: 10 }}>
+              <h3 style={{ margin: 0 }}>Detalle por vehículo</h3>
+              <span className="sp" />
+              <label htmlFor="rk-excluidos" style={{ fontSize: 13 }}>
+                <input
+                  id="rk-excluidos"
+                  type="checkbox"
+                  checked={showExcluded}
+                  onChange={(e) => setShowExcluded(e.target.checked)}
+                />
                 Mostrar excluidos
               </label>
             </div>
             <div className="tw">
               <table>
+                <caption className="sr-only">Detalle de km por vehículo en {alcance}</caption>
                 <thead>
                   <tr>
-                    <th>Patente</th>
-                    <th>Marca / Modelo</th>
-                    <th>Km Mes</th>
-                    <th>Km Anterior</th>
-                    <th>Variación</th>
-                    <th>Sucursal</th>
+                    <th scope="col">Patente</th>
+                    <th scope="col">Marca / Modelo</th>
+                    <th scope="col" className="r">
+                      Km mes
+                    </th>
+                    <th scope="col" className="r">
+                      Km anterior
+                    </th>
+                    <th scope="col" className="r">
+                      Variación
+                    </th>
+                    <th scope="col">Sucursal</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(showExcluded ? data : filtered).map((d) => (
-                    <tr key={d.r.id} style={{ opacity: d.excluded ? 0.5 : 1 }}>
-                      <td>
-                        <b>{d.v?.plate || '???'}</b>
-                      </td>
+                    <tr key={d.r.id}>
+                      <th scope="row">
+                        {d.v?.plate || '???'}
+                        {d.excluded && (
+                          <>
+                            {' '}
+                            <span className="bd nd">Excluido</span>
+                          </>
+                        )}
+                      </th>
                       <td className="muted">
                         {d.v?.brand && d.v?.model ? `${d.v.brand} ${d.v.model}` : d.v?.brand || '—'}
                       </td>
-                      <td>
+                      <td className="r num">
                         <b>{num(Math.round(d.kmTotal))}</b>
                       </td>
-                      <td>{d.kmPrev > 0 ? num(Math.round(d.kmPrev)) : '—'}</td>
-                      <td>
+                      <td className="r num">{d.kmPrev > 0 ? num(Math.round(d.kmPrev)) : '—'}</td>
+                      <td className="r num">
                         {d.variation !== null ? (
-                          <span
-                            style={{ color: d.variation > 0 ? '#10b981' : d.variation < 0 ? '#ef4444' : '#6b7280' }}
-                          >
+                          <>
+                            {d.variation !== 0 && <span aria-hidden="true">{d.variation > 0 ? '▲ ' : '▼ '}</span>}
                             {d.variation > 0 ? '+' : ''}
-                            {d.variation}%
-                          </span>
+                            {d.variation} %
+                          </>
                         ) : (
                           '—'
                         )}
@@ -297,15 +425,35 @@ export default function ReportesKm() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row" colSpan={2}>
+                      Total
+                    </th>
+                    <td className="r num">{num(Math.round(totalKm))}</td>
+                    <td colSpan={3} />
+                  </tr>
+                </tfoot>
               </table>
             </div>
-          </div>
+          </section>
         </>
       ) : (
         <div className="empty">
-          {months.length === 0
-            ? 'No hay datos. Importá un archivo "Distancias Diarias" de Gestya.'
-            : `No hay reportes para ${month}${branch ? ` en ${branch}` : ''}.`}
+          {months.length === 0 ? (
+            <>
+              No hay reportes de km cargados. Importá el Excel “Distancias Diarias” de Gestya con el botón{' '}
+              <b>Importar Gestya</b> de arriba: el reporte de cada mes se arma solo a partir del archivo.
+            </>
+          ) : (
+            <>
+              No hay reportes de km para {mesLabel(month)}
+              {branch ? ` en ${branch}` : ''}
+              {data.length > 0 && !showExcluded
+                ? ': todos los vehículos de este mes están excluidos de los reportes.'
+                : '. Elegí otro mes o importá el archivo de Gestya de ese mes.'}
+            </>
+          )}
         </div>
       )}
 

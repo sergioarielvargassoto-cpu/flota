@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useData } from '@/lib/data';
 import { computeAlerts, daysText, kmText, STATUS_LABEL } from '@/lib/alerts';
-import { download, fd, todayStr } from '@/lib/util';
+import { download, fd, money, todayStr } from '@/lib/util';
 import { Badge } from '@/components/Badge';
 
 export default function Panel() {
@@ -73,76 +73,84 @@ export default function Panel() {
         </div>
       )}
       <h2>Panel de vencimientos</h2>
-      <div className="cards">
-        <div className="card">
-          <div className="n" style={{ color: 'var(--r)' }}>
-            {c('vencido')}
+      <section className="card" aria-labelledby="kpi-main" style={{ padding: '24px 28px', marginBottom: 16 }}>
+        <div className="an-eyebrow" id="kpi-main">
+          Vencimientos a atender
+        </div>
+        <div className="num" style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1, marginTop: 6 }}>
+          {pending.length}
+        </div>
+        <p className="an-ink-2" style={{ margin: '6px 0 0' }}>
+          {c('vencido') > 0
+            ? `${c('vencido')} ya ${c('vencido') === 1 ? 'está vencido' : 'están vencidos'} y ${c('critico')} vence${c('critico') === 1 ? '' : 'n'} en ${s.d3} días o menos.`
+            : pending.length
+              ? `Nada vencido. ${c('critico')} vence${c('critico') === 1 ? '' : 'n'} en ${s.d3} días o menos.`
+              : 'Todo al día.'}{' '}
+          {vehicles.filter((v) => v.status !== 'Baja').length} vehículos activos · {drivers.length} choferes.
+        </p>
+      </section>
+      <dl className="cards" style={{ margin: '0 0 24px' }}>
+        {(
+          [
+            ['vencido', '!', 'Vencidos', null],
+            ['critico', '!', 'Críticos', `≤ ${s.d3} días`],
+            ['urgente', '▲', 'Urgentes', `≤ ${s.d2} días`],
+            ['proximo', '•', 'Próximos', `≤ ${s.d1} días`],
+            ['nd', '?', 'Sin fecha cargada', 'completar en cada ficha'],
+          ] as const
+        ).map(([k, ic, label, det]) => (
+          <div className="card" key={k}>
+            <dt className={'kpi-mk ' + k}>
+              <i aria-hidden="true">{ic}</i>
+              {label}
+            </dt>
+            <dd className="n" style={{ margin: '6px 0 0' }}>
+              {c(k)}
+            </dd>
+            {det && (
+              <dd className="muted" style={{ margin: 0, fontSize: 12 }}>
+                {det}
+              </dd>
+            )}
           </div>
-          <div className="l">Vencidos</div>
-        </div>
-        <div className="card">
-          <div className="n" style={{ color: 'var(--o)' }}>
-            {c('critico')}
-          </div>
-          <div className="l">Críticos (≤ {s.d3} días)</div>
-        </div>
-        <div className="card">
-          <div className="n" style={{ color: 'var(--y)' }}>
-            {c('urgente')}
-          </div>
-          <div className="l">Urgentes (≤ {s.d2} días)</div>
-        </div>
-        <div className="card">
-          <div className="n" style={{ color: '#c5e063' }}>
-            {c('proximo')}
-          </div>
-          <div className="l">Próximos (≤ {s.d1} días)</div>
-        </div>
-        <div className="card">
-          <div className="n" style={{ color: 'var(--m)' }}>
-            {c('nd')}
-          </div>
-          <div className="l">Sin fecha cargada</div>
-        </div>
-        <div className="card">
-          <div className="n">{vehicles.filter((v) => v.status !== 'Baja').length}</div>
-          <div className="l">Vehículos activos</div>
-        </div>
-        <div className="card">
-          <div className="n">{drivers.length}</div>
-          <div className="l">Choferes</div>
-        </div>
-      </div>
+        ))}
+      </dl>
       <div className="bar">
-        <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+        <label htmlFor="panel-filtro" className="sr-only">
+          Mostrar
+        </label>
+        <select id="panel-filtro" value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">Todo</option>
           <option value="Vehículo">Vehículos</option>
           <option value="Chofer">Choferes</option>
           <option value="Mantenimiento">Mantenimientos</option>
         </select>
         <label className="muted">
-          <input type="checkbox" style={{ width: 'auto' }} checked={all} onChange={(e) => setAll(e.target.checked)} />{' '}
+          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />{' '}
           ver también los que están al día
         </label>
         <span className="sp" />
         <button className="b2" onClick={csv}>
-          ⬇ Exportar CSV
+          <span aria-hidden="true">⬇</span> Exportar CSV
         </button>
         <button className="b2" onClick={() => window.print()}>
-          🖨 Imprimir
+          <span aria-hidden="true">🖨</span> Imprimir
         </button>
       </div>
       {list.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Vencimientos ordenados por urgencia</caption>
             <thead>
               <tr>
-                <th>Estado</th>
-                <th>Tipo</th>
-                <th>Quién</th>
-                <th>Documento / tarea</th>
-                <th>Fecha</th>
-                <th></th>
+                <th scope="col">Estado</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Quién</th>
+                <th scope="col">Documento / tarea</th>
+                <th scope="col">Fecha</th>
+                <th scope="col">
+                  <span className="sr-only">Abrir</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -158,7 +166,9 @@ export default function Panel() {
                     {x.ref && <span className="muted"> · {x.ref}</span>}
                   </td>
                   <td>{fd(x.date)}</td>
-                  <td className="muted">ver ›</td>
+                  <td className="muted" aria-hidden="true">
+                    ver ›
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -167,36 +177,40 @@ export default function Panel() {
       ) : (
         <div className="empty">
           {vehicles.length || drivers.length
-            ? '✅ No hay vencimientos próximos.'
-            : 'Empezá cargando tus vehículos y choferes.'}
+            ? 'No hay vencimientos próximos. Marcá «ver también los que están al día» para revisar el resto.'
+            : 'Todavía no hay datos. Empezá cargando tus vehículos y choferes desde sus pestañas.'}
         </div>
       )}
 
       <h2 style={{ marginTop: '40px' }}>Infracciones</h2>
-      <div className="cards">
-        <div className="card">
-          <div className="n" style={{ color: '#ff9800' }}>
-            {infractions.filter((i) => i.status === 'Registrada').length}
+      <dl className="cards" style={{ margin: '0 0 24px' }}>
+        {(
+          [
+            ['urgente', '!', 'Registradas', infractions.filter((i) => i.status === 'Registrada').length],
+            ['ok', '✓', 'Pagadas', infractions.filter((i) => i.status === 'Pagada').length],
+            ['nd', '–', 'Anuladas', infractions.filter((i) => i.status === 'Anulada').length],
+          ] as const
+        ).map(([k, ic, label, n]) => (
+          <div className="card" key={label}>
+            <dt className={'kpi-mk ' + k}>
+              <i aria-hidden="true">{ic}</i>
+              {label}
+            </dt>
+            <dd className="n" style={{ margin: '6px 0 0' }}>
+              {n}
+            </dd>
           </div>
-          <div className="l">Registradas</div>
-        </div>
+        ))}
         <div className="card">
-          <div className="n" style={{ color: '#4caf50' }}>
-            {infractions.filter((i) => i.status === 'Pagada').length}
-          </div>
-          <div className="l">Pagadas</div>
+          <dt className="kpi-mk acc">
+            <i aria-hidden="true">$</i>
+            Multas pendientes
+          </dt>
+          <dd className="n" style={{ margin: '6px 0 0' }}>
+            {money(fines.reduce((sum, f) => sum + (f.paid_amount ? 0 : f.amount), 0))}
+          </dd>
         </div>
-        <div className="card">
-          <div className="n" style={{ color: '#999' }}>
-            {infractions.filter((i) => i.status === 'Anulada').length}
-          </div>
-          <div className="l">Anuladas</div>
-        </div>
-        <div className="card">
-          <div className="n">${fines.reduce((sum, f) => sum + (f.paid_amount ? 0 : f.amount), 0).toFixed(2)}</div>
-          <div className="l">Multas pendientes</div>
-        </div>
-      </div>
+      </dl>
       <div className="bar">
         <span className="sp" />
         <button className="b1" onClick={() => router.push('/infracciones')}>
@@ -206,14 +220,17 @@ export default function Panel() {
       {infractions.slice(0, 5).length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Últimas 5 infracciones</caption>
             <thead>
               <tr>
-                <th>Conductor</th>
-                <th>Vehículo</th>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Multa ($)</th>
-                <th>Estado</th>
+                <th scope="col">Conductor</th>
+                <th scope="col">Vehículo</th>
+                <th scope="col">Fecha</th>
+                <th scope="col">Tipo</th>
+                <th scope="col" className="r">
+                  Multa
+                </th>
+                <th scope="col">Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -223,10 +240,10 @@ export default function Panel() {
                 .map((i) => {
                   const driver = drivers.find((d) => d.id === i.driver_id);
                   const vehicle = vehicles.find((v) => v.id === i.vehicle_id);
-                  const statusColor: Record<string, string> = {
-                    Registrada: '#ff9800',
-                    Pagada: '#4caf50',
-                    Anulada: '#999',
+                  const statusClass: Record<string, string> = {
+                    Registrada: 'urgente',
+                    Pagada: 'ok',
+                    Anulada: 'nd',
                   };
                   return (
                     <tr key={i.id} className="cl" onClick={() => router.push(`/infracciones/${i.id}`)}>
@@ -236,19 +253,9 @@ export default function Panel() {
                       <td>{vehicle?.plate || '—'}</td>
                       <td>{i.date}</td>
                       <td>{i.type}</td>
-                      <td>{i.fine_amount ? `$${i.fine_amount.toFixed(2)}` : '—'}</td>
+                      <td className="r">{i.fine_amount ? money(i.fine_amount) : '—'}</td>
                       <td>
-                        <span
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            backgroundColor: statusColor[i.status],
-                            color: '#fff',
-                            fontSize: '12px',
-                          }}
-                        >
-                          {i.status}
-                        </span>
+                        <span className={'bd ' + (statusClass[i.status] ?? 'nd')}>{i.status}</span>
                       </td>
                     </tr>
                   );
@@ -257,7 +264,7 @@ export default function Panel() {
           </table>
         </div>
       ) : (
-        <div className="empty">✅ Sin infracciones registradas.</div>
+        <div className="empty">Sin infracciones registradas. Se cargan desde la pestaña Infracciones.</div>
       )}
     </>
   );

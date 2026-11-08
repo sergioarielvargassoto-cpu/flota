@@ -25,18 +25,26 @@ export function DocsTable({ owner }: { owner: { type: 'vehicle' | 'driver'; id: 
         </button>
       </div>
       {list.length === 0 ? (
-        <div className="empty">Sin vencimientos cargados.</div>
+        <div className="empty">
+          Todavía no hay vencimientos cargados. Usá «
+          {owner.type === 'vehicle' ? '+ Vencimiento' : '+ Vencimiento (LINTI, licencia…)'}» para agregar el primero.
+        </div>
       ) : (
         <div className="tw">
           <table>
+            <caption className="sr-only">
+              {owner.type === 'vehicle' ? 'Vencimientos del vehículo' : 'Documentación del chofer'}
+            </caption>
             <thead>
               <tr>
-                <th>Documento</th>
-                <th>Vence</th>
-                <th>Estado</th>
-                <th>Ref.</th>
-                <th>Copias</th>
-                <th></th>
+                <th scope="col">Documento</th>
+                <th scope="col">Vence</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Ref.</th>
+                <th scope="col">Copias</th>
+                <th scope="col">
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -76,6 +84,7 @@ export function DocsTable({ owner }: { owner: { type: 'vehicle' | 'driver'; id: 
                       </button>{' '}
                       <button
                         className="b3 sm"
+                        aria-label={`Eliminar vencimiento ${d.doc_type}`}
                         onClick={() => {
                           if (!confirm('¿Eliminar este vencimiento?')) return;
                           guard(async () => {
@@ -102,22 +111,30 @@ export function DocsTable({ owner }: { owner: { type: 'vehicle' | 'driver'; id: 
 export function RepairsTable({ list, showVehicle }: { list: Repair[]; showVehicle: boolean }) {
   const { vehicles, workshops, attachments, remove } = useData();
   const { el, open } = useModal();
-  if (!list.length) return <div className="empty">Sin reparaciones registradas.</div>;
+  if (!list.length)
+    return <div className="empty">Todavía no hay reparaciones registradas. Usá «+ Reparación» para cargar la primera.</div>;
   const sc = { Pendiente: 'critico', 'En curso': 'urgente', Finalizada: 'ok' } as const;
   return (
     <>
       <div className="tw">
         <table>
+          <caption className="sr-only">Reparaciones, de la más reciente a la más antigua</caption>
           <thead>
             <tr>
-              {showVehicle && <th>Vehículo</th>}
-              <th>Fecha</th>
-              <th>Descripción</th>
-              <th>Taller</th>
-              <th>Km</th>
-              <th>Costo</th>
-              <th>Estado</th>
-              <th></th>
+              {showVehicle && <th scope="col">Vehículo</th>}
+              <th scope="col">Fecha</th>
+              <th scope="col">Descripción</th>
+              <th scope="col">Taller</th>
+              <th scope="col" className="r">
+                Km
+              </th>
+              <th scope="col" className="r">
+                Costo
+              </th>
+              <th scope="col">Estado</th>
+              <th scope="col">
+                <span className="sr-only">Acciones</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -127,20 +144,20 @@ export function RepairsTable({ list, showVehicle }: { list: Repair[]; showVehicl
                 <tr key={r.id}>
                   {showVehicle && <td>{vehicles.find((v) => v.id === r.vehicle_id)?.plate ?? '—'}</td>}
                   <td>
-                    <Link className="lk" href={`/reparaciones/${r.id}`} style={{ textDecoration: 'none' }}>
+                    <Link className="lk" href={`/reparaciones/${r.id}`}>
                       {fd(r.date)}
                     </Link>
                   </td>
                   <td>
-                    <Link className="lk" href={`/reparaciones/${r.id}`} style={{ textDecoration: 'none' }}>
+                    <Link className="lk" href={`/reparaciones/${r.id}`}>
                       {r.description}
                     </Link>{' '}
                     <AttachmentList kind="repair" id={r.id} />
                     {r.invoice && <div className="muted">Fact. {r.invoice}</div>}
                   </td>
                   <td>{workshops.find((w) => w.id === r.workshop_id)?.name ?? '—'}</td>
-                  <td>{num(r.km)}</td>
-                  <td>{money(r.cost)}</td>
+                  <td className="r">{num(r.km)}</td>
+                  <td className="r">{money(r.cost)}</td>
                   <td>
                     <Badge status={sc[r.status]}>{r.status}</Badge>
                   </td>
@@ -150,6 +167,7 @@ export function RepairsTable({ list, showVehicle }: { list: Repair[]; showVehicl
                     </button>{' '}
                     <button
                       className="b3 sm"
+                      aria-label={`Eliminar reparación del ${fd(r.date)}`}
                       onClick={() => {
                         if (!confirm('¿Eliminar reparación?')) return;
                         guard(async () => {
@@ -174,21 +192,31 @@ export function RepairsTable({ list, showVehicle }: { list: Repair[]; showVehicl
 export function MaintTable({ list, showVehicle }: { list: Maint[]; showVehicle: boolean }) {
   const { vehicles, workshops, attachments, remove } = useData();
   const { el, open } = useModal();
-  if (!list.length) return <div className="empty">Sin mantenimientos registrados.</div>;
+  if (!list.length)
+    return (
+      <div className="empty">Todavía no hay mantenimientos registrados. Usá «+ Mantenimiento» para cargar el primero.</div>
+    );
   return (
     <>
       <div className="tw">
         <table>
+          <caption className="sr-only">Mantenimientos, del más reciente al más antiguo</caption>
           <thead>
             <tr>
-              {showVehicle && <th>Vehículo</th>}
-              <th>Tipo</th>
-              <th>Realizado</th>
-              <th>Km</th>
-              <th>Taller</th>
-              <th>Costo</th>
-              <th>Próximo</th>
-              <th></th>
+              {showVehicle && <th scope="col">Vehículo</th>}
+              <th scope="col">Tipo</th>
+              <th scope="col">Realizado</th>
+              <th scope="col" className="r">
+                Km
+              </th>
+              <th scope="col">Taller</th>
+              <th scope="col" className="r">
+                Costo
+              </th>
+              <th scope="col">Próximo</th>
+              <th scope="col">
+                <span className="sr-only">Acciones</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -203,19 +231,19 @@ export function MaintTable({ list, showVehicle }: { list: Maint[]; showVehicle: 
                   <tr key={m.id}>
                     {showVehicle && <td>{vehicles.find((v) => v.id === m.vehicle_id)?.plate ?? '—'}</td>}
                     <td>
-                      <Link className="lk" href={`/mantenimientos/${m.id}`} style={{ textDecoration: 'none' }}>
+                      <Link className="lk" href={`/mantenimientos/${m.id}`}>
                         {m.type}
                       </Link>{' '}
                       <AttachmentList kind="maintenance" id={m.id} />
                     </td>
                     <td>
-                      <Link className="lk" href={`/mantenimientos/${m.id}`} style={{ textDecoration: 'none' }}>
+                      <Link className="lk" href={`/mantenimientos/${m.id}`}>
                         {fd(m.date)}
                       </Link>
                     </td>
-                    <td>{num(m.km)}</td>
+                    <td className="r">{num(m.km)}</td>
                     <td>{workshops.find((w) => w.id === m.workshop_id)?.name ?? '—'}</td>
-                    <td>{money(m.cost)}</td>
+                    <td className="r">{money(m.cost)}</td>
                     <td>{next}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <button className="b2 sm" onClick={() => open((c) => <MaintForm id={m.id} onClose={c} />)}>
@@ -223,6 +251,7 @@ export function MaintTable({ list, showVehicle }: { list: Maint[]; showVehicle: 
                       </button>{' '}
                       <button
                         className="b3 sm"
+                        aria-label={`Eliminar mantenimiento ${m.type} del ${fd(m.date)}`}
                         onClick={() => {
                           if (!confirm('¿Eliminar mantenimiento?')) return;
                           guard(async () => {

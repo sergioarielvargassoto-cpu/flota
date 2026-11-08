@@ -20,10 +20,11 @@ export default function Infracciones() {
     return !q || text.includes(q.toLowerCase());
   });
 
-  const statusColor: Record<string, string> = {
-    Registrada: '#ff9800',
-    Pagada: '#4caf50',
-    Anulada: '#999',
+  // Estado → insignia de la paleta (siempre con texto)
+  const statusBadge: Record<string, string> = {
+    Registrada: 'urgente',
+    Pagada: 'ok',
+    Anulada: 'nd',
   };
 
   return (
@@ -31,7 +32,11 @@ export default function Infracciones() {
       <div className="bar">
         <h2 style={{ margin: 0 }}>Infracciones ({infractions.length})</h2>
         <span className="sp" />
-        <input placeholder="Buscar…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input
+          type="search"
+          aria-label="Buscar infracción por conductor, patente, tipo o número"
+          placeholder="Conductor, patente, tipo o N°…"
+          value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="b1" onClick={() => open((c) => <InfractionForm onClose={c} />)}>
           + Infracción
         </button>
@@ -39,15 +44,18 @@ export default function Infracciones() {
       {filtered.length ? (
         <div className="tw">
           <table>
+            <caption className="sr-only">Infracciones registradas</caption>
             <thead>
               <tr>
-                <th>Conductor</th>
-                <th>Vehículo</th>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>N° Infracción</th>
-                <th>Multa ($)</th>
-                <th>Estado</th>
+                <th scope="col">Conductor</th>
+                <th scope="col">Vehículo</th>
+                <th scope="col">Fecha</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">N° Infracción</th>
+                <th scope="col" className="r">
+                  Multa ($)
+                </th>
+                <th scope="col">Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -69,19 +77,9 @@ export default function Infracciones() {
                     <td>{i.date}</td>
                     <td>{i.type}</td>
                     <td>{i.infraction_number || '—'}</td>
-                    <td>{i.fine_amount ? `$${i.fine_amount.toFixed(2)}` : '—'}</td>
+                    <td className="r">{i.fine_amount ? `$${i.fine_amount.toFixed(2)}` : '—'}</td>
                     <td>
-                      <span
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          backgroundColor: statusColor[i.status],
-                          color: '#fff',
-                          fontSize: '12px',
-                        }}
-                      >
-                        {i.status}
-                      </span>
+                      <span className={'bd ' + (statusBadge[i.status] ?? 'nd')}>{i.status}</span>
                     </td>
                   </tr>
                 );
@@ -90,7 +88,11 @@ export default function Infracciones() {
           </table>
         </div>
       ) : (
-        <div className="empty">Todavía no hay infracciones. Tocá "+ Infracción".</div>
+        <div className="empty">
+          {infractions.length
+            ? 'Ninguna infracción coincide con la búsqueda. Probá con otro conductor, patente o número.'
+            : 'Todavía no cargaste infracciones. Usá «+ Infracción» para registrar la primera.'}
+        </div>
       )}
       {el}
     </>
